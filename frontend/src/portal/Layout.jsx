@@ -15,6 +15,7 @@ import {
   ArrowRightOnRectangleIcon
 } from '@heroicons/react/24/outline';
 import { AcademicCapIcon } from '@heroicons/react/24/solid';
+import { PageWrapper } from '../components/PageWrapper';
 
 export default function PortalLayout() {
   const navigate = useNavigate();
@@ -37,28 +38,8 @@ export default function PortalLayout() {
   ];
 
   return (
-    <div className="flex h-screen bg-[#f4f6f8] text-slate-800 font-sans overflow-hidden">
+    <div className="flex flex-col md:flex-row h-screen bg-[#f4f6f8] text-slate-800 font-sans overflow-hidden">
       
-      {/* Exact Mobile Header Match */}
-      <div className="md:hidden bg-white h-[60px] px-4 flex items-center justify-between sticky top-0 z-40 border-b border-gray-100/50 shadow-sm shrink-0">
-        <button onClick={() => navigate(-1)} className="text-slate-500 hover:text-slate-700 w-8 h-8 flex items-center justify-center p-0 m-0">
-          <ChevronLeftIcon className="w-6 h-6" />
-        </button>
-        <div className="flex items-center gap-1.5 flex-1 justify-center">
-           <AcademicCapIcon className="w-6 h-6 text-brand-500 shrink-0" />
-           <span className="text-lg font-bold text-slate-800 tracking-tight">GradiaFlow</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <button className="relative text-slate-400 hover:text-slate-600">
-            <BellIcon className="w-6 h-6" />
-            <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-          </button>
-          <button className="text-slate-500 hover:text-slate-700" onClick={() => setMobileMenuOpen(true)}>
-            <Bars3Icon className="w-6 h-6" />
-          </button>
-        </div>
-      </div>
-
       {/* Mobile Sliding Menu */}
       {mobileMenuOpen && (
         <>
@@ -101,9 +82,11 @@ export default function PortalLayout() {
       )}
 
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-64 h-full bg-sidebar text-slate-400 flex-col relative z-20">
+      <aside className="hidden md:flex w-64 h-full bg-sidebar text-slate-400 flex-col relative z-20 shrink-0">
         <div className="h-[72px] px-6 flex items-center gap-3 border-b border-white/5 shrink-0">
-          <AcademicCapIcon className="w-8 h-8 text-blue-400 shrink-0" />
+          <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-lg overflow-hidden shrink-0">
+            <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
+          </div>
           <span className="text-xl font-bold text-white tracking-wide">GradiaFlow</span>
         </div>
         
@@ -158,13 +141,36 @@ export default function PortalLayout() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        {/* Mobile Header Inside Content Area */}
+        <div className="md:hidden bg-white h-[60px] px-4 flex items-center justify-between sticky top-0 z-40 border-b border-gray-100/50 shadow-sm shrink-0">
+          <button onClick={() => navigate(-1)} className="text-slate-500 hover:text-slate-700 w-8 h-8 flex items-center justify-center p-0 m-0">
+            <ChevronLeftIcon className="w-6 h-6" />
+          </button>
+          <div className="flex items-center gap-1.5 flex-1 justify-center">
+             <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-md overflow-hidden shrink-0">
+               <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
+             </div>
+             <span className="text-lg font-bold text-slate-800 tracking-tight">GradiaFlow</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <button className="relative text-slate-400 hover:text-slate-600">
+              <BellIcon className="w-6 h-6" />
+              <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+            </button>
+            <button className="text-slate-500 hover:text-slate-700" onClick={() => setMobileMenuOpen(true)}>
+              <Bars3Icon className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+
         <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
-          <div className="md:p-8">
-            <Outlet />
+          <div className="p-3 sm:p-5 md:p-8">
+            <PageWrapper key={location.pathname}>
+              <Outlet />
+            </PageWrapper>
           </div>
         </div>
       </div>
-
     </div>
   );
 }

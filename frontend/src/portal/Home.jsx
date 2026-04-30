@@ -68,16 +68,23 @@ export default function PortalHome() {
       }
 
       setChildren(studentRows);
-      setSelectedStudentId((current) => current || studentRows[0]?.id || '');
+      const studentId = studentRows[0]?.id || '';
+      setSelectedStudentId(studentId);
 
+      // Start loading student snapshot in parallel with announcements
+      const snapshotPromise = studentId ? loadStudentSnapshot(studentId) : Promise.resolve();
+      
       const { data: announcementRows, error: announcementsError } = await supabase
         .from('announcements')
         .select('id, title, created_at')
         .eq('school_id', profile.school_id)
         .order('created_at', { ascending: false })
         .limit(4);
+        
       if (announcementsError) throw announcementsError;
       setAnnouncements(announcementRows ?? []);
+      
+      await snapshotPromise;
     } catch (error) {
       console.error('Portal load error:', error);
       setChildren([]);
@@ -141,18 +148,26 @@ export default function PortalHome() {
   const totalPaid = approvedPayments.reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
 
   if (loading) {
-    return <div className="p-6 text-sm text-slate-500">Loading portal...</div>;
+    return (
+      <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
+        <div className="h-40 bg-white rounded-[2rem] border border-slate-100 animate-skeleton"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="h-64 bg-white rounded-[2rem] border border-slate-100 animate-skeleton"></div>
+          <div className="h-64 bg-white rounded-[2rem] border border-slate-100 animate-skeleton"></div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="p-4 md:p-0 max-w-6xl mx-auto space-y-5 pb-8">
+    <div className="w-full max-w-7xl mx-auto space-y-5 pb-8">
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-5 items-start">
         <div className="space-y-5">
           <div className="bg-white rounded-[2rem] border border-slate-100 shadow-soft overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className="relative group">
-                  <div className="w-16 h-16 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center text-slate-500 font-semibold border-2 border-white shadow-sm">
+            <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-4 border-b border-slate-100 gap-4">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="relative group shrink-0">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center text-slate-500 font-semibold border-2 border-white shadow-sm">
                     {profile?.avatar_url ? (
                       <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
@@ -195,8 +210,9 @@ export default function PortalHome() {
                             
                             if (updateError) throw updateError;
                             
-                            // 4. Refresh page
-                            window.location.reload();
+                            // 4. Update local cache
+                            mutate(profile.id);
+                            setReportMsg('Profile picture updated successfully!');
                           } catch (err) {
                             alert('Failed to upload image: ' + (err.message || err));
                           }
@@ -209,19 +225,21 @@ export default function PortalHome() {
                     </label>
                   )}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-semibold text-slate-900">
+                    <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 truncate">
                       {selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : 'Portal'}
                     </h1>
-                    <ChevronDownIcon className="w-5 h-5 text-slate-400" />
+                    <ChevronDownIcon className="w-5 h-5 text-slate-400 shrink-0" />
                   </div>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-500 truncate">
                     {selectedStudent?.classes?.name ?? 'No class assigned'}
                   </p>
                 </div>
               </div>
-              <BellIcon className="w-6 h-6 text-slate-400" />
+              <div className="flex items-center gap-4 w-full sm:w-auto justify-end border-t sm:border-0 pt-4 sm:pt-0">
+                <BellIcon className="w-6 h-6 text-slate-400" />
+              </div>
             </div>
 
             {isParent && children.length > 1 && (
@@ -240,10 +258,12 @@ export default function PortalHome() {
               </div>
             )}
 
-            <div className="grid grid-cols-3 gap-3 px-5 py-5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 px-5 py-5">
               <MetricCard value={`${attendanceRate}%`} label="Attendance" />
-              <MetricCard value={averageScore} label="Average Score" />
-              <MetricCard value={totalClasses} label="Total Classes" />
+              <MetricCard value={averageScore} label="Avg Score" />
+              <div className="col-span-2 sm:col-span-1">
+                <MetricCard value={totalClasses} label="Total Classes" />
+              </div>
             </div>
           </div>
 

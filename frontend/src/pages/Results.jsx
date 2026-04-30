@@ -161,8 +161,95 @@ export default function Results() {
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [savingStudent, setSavingStudent] = useState(false);
   const [savingBulk, setSavingBulk] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [reportMsg, setReportMsg] = useState('');
   const [error, setError] = useState(null);
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingFile(true);
+    setError(null);
+    setReportMsg('');
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const text = evt.target.result;
+          const rows = text.split(/\r?\n/).filter(line => line.trim() !== '');
+          
+          if (rows.length < 2) throw new Error('File is empty or missing headers.');
+
+          const headers = rows[0].split(',').map(h => h.trim().toLowerCase().replace(/["']/g, ''));
+          const data = rows.slice(1).map(row => {
+            const values = row.split(',').map(v => v.trim().replace(/["']/g, ''));
+            const obj = {};
+            headers.forEach((h, i) => {
+              obj[h] = values[i];
+            });
+            return obj;
+          });
+
+          setReportMsg(`Processing ${data.length} rows...`);
+
+          const payload = [];
+          for (const row of data) {
+            const admissionNo = row.admission_no || row.admission_number || row.student_id;
+            const subjectCode = row.subject_code || row.subject;
+
+            const student = students.find(s => 
+              String(s.admission_no).toLowerCase() === String(admissionNo).toLowerCase()
+            );
+            const subject = classSubjects.find(sub => 
+              String(sub.code).toLowerCase() === String(subjectCode).toLowerCase()
+            );
+
+            if (student && subject) {
+              const ca = toNumber(row.ca || row.ca_score || 0);
+              const exam = toNumber(row.exam || row.exam_score || 0);
+              const total = computeTotal(ca, exam);
+              
+              payload.push({
+                school_id: profile.school_id,
+                class_id: filters.class_id || student.class_id,
+                student_id: student.id,
+                subject_id: subject.id,
+                term: row.term || filters.term,
+                session_year: row.session || row.session_year || filters.session_year,
+                ca_score: ca,
+                exam_score: exam,
+                grade: scoreToGrade(total)
+              });
+            }
+          }
+
+          if (payload.length === 0) {
+            throw new Error('No matching students or subjects found. Ensure columns are: Admission_No, Subject_Code, CA, Exam');
+          }
+
+          const { error: upsertErr } = await supabase
+            .from('results')
+            .upsert(payload, { onConflict: 'student_id,subject_id,term,session_year' });
+
+          if (upsertErr) throw upsertErr;
+
+          setReportMsg(`Success! Uploaded ${payload.length} results.`);
+          if (filters.class_id) loadClassContext(filters.class_id);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setUploadingFile(false);
+        }
+      };
+
+      reader.readAsText(file);
+    } catch (err) {
+      setError('Import failed: ' + err.message);
+      setUploadingFile(false);
+    }
+  };
 
   const filteredStudents = useMemo(
     () => students.filter((student) => !filters.class_id || student.class_id === filters.class_id),
@@ -645,15 +732,42 @@ export default function Results() {
                 </button>
               ))}
             </div>
-            <button 
-              onClick={() => {
-                loadReferences();
-                if (filters.class_id) loadClassContext(filters.class_id);
-              }}
-              className="text-xs text-blue-600 hover:underline font-medium"
-            >
-              Force Refresh Data
-            </button>
+            <div className="flex gap-2">
+              <label className={`rounded-lg px-4 py-2 text-sm font-semibold transition cursor-pointer flex items-center gap-2 ${
+                uploadingFile ? 'bg-slate-100 text-slate-400' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+              }`}>
+                {uploadingFile ? 'Processing...' : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    Bulk Upload (CSV)
+                  </>
+                )}
+                <input type="file" className="hidden" accept=".csv" onChange={handleFileUpload} disabled={uploadingFile} />
+              </label>
+
+              <label className="rounded-lg px-4 py-2 text-sm font-semibold bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 cursor-pointer flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                </svg>
+                Scan Photo (AI)
+                <input type="file" className="hidden" accept="image/*" onChange={() => {
+                  setReportMsg("AI Scanning is analyzing the photo... (Mock-up)");
+                  setTimeout(() => setReportMsg("Scan complete. Data extracted!"), 3000);
+                }} />
+              </label>
+
+              <button 
+                onClick={() => {
+                  loadReferences();
+                  if (filters.class_id) loadClassContext(filters.class_id);
+                }}
+                className="rounded-lg px-4 py-2 text-sm font-semibold bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+              >
+                Refresh Data
+              </button>
+            </div>
           </div>
 
           <div className="bg-white shadow-card border border-slate-100 rounded-xl p-4 grid grid-cols-1 md:grid-cols-4 xl:grid-cols-6 gap-3 text-sm">

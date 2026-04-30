@@ -1,6 +1,11 @@
+import NProgress from 'nprogress';
+import 'nprogress/nprogress.css';
 import { supabase } from './supabaseClient';
 
 const base = import.meta.env.VITE_API_URL;
+
+// Configure NProgress
+NProgress.configure({ showSpinner: false, speed: 400, minimum: 0.2 });
 
 export async function apiFetch(path, { method = 'GET', token, body } = {}) {
   if (!base) throw new Error('VITE_API_URL is missing');
@@ -11,6 +16,7 @@ export async function apiFetch(path, { method = 'GET', token, body } = {}) {
     authToken = session?.access_token;
   }
 
+  NProgress.start();
   try {
     const res = await fetch(`${base}${path}`, {
       method,
@@ -24,7 +30,7 @@ export async function apiFetch(path, { method = 'GET', token, body } = {}) {
       const text = await res.text();
       throw new Error(text || `Request failed ${res.status}`);
     }
-    return res.json();
+    return await res.json();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (
@@ -35,5 +41,7 @@ export async function apiFetch(path, { method = 'GET', token, body } = {}) {
       throw new Error(`Cannot reach the backend at ${base}. Start the Express server in backend/ and make sure VITE_API_URL is correct.`);
     }
     throw error;
+  } finally {
+    NProgress.done();
   }
 }

@@ -1,4 +1,8 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import NProgress from 'nprogress';
+import 'nprogress/nprogress.css';
+// ... existing imports ...
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import RoleBasedRedirect from './components/RoleBasedRedirect';
@@ -45,9 +49,31 @@ import EnhancedPortal from './portal/EnhancedPortal';
 import TeacherDashboard from './pages/TeacherDashboard';
 import FinancialDashboard from './pages/FinancialDashboard';
 
+// Public Pages
+import Home from './pages/Home';
+import AboutUs from './pages/AboutUs';
+import Services from './pages/Services';
+import ContactUs from './pages/ContactUs';
+import PublicLayout from './components/PublicLayout';
+
 export default function App() {
+  const location = useLocation();
+
+  useEffect(() => {
+    NProgress.start();
+    NProgress.done();
+  }, [location.pathname]);
+
   return (
     <Routes>
+      {/* Public Routes */}
+      <Route element={<PublicLayout />}>
+        <Route path="/" element={<Home />} />
+        <Route path="/about" element={<AboutUs />} />
+        <Route path="/services" element={<Services />} />
+        <Route path="/contact" element={<ContactUs />} />
+      </Route>
+
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/setup/gradiaflow-admin" element={<SetupGradiaFlowAdmin />} />
@@ -107,7 +133,6 @@ export default function App() {
       </Route>
 
       {/* Fallback routes */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

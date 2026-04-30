@@ -74,8 +74,10 @@ export default function PortalAIChat() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-2xl mx-auto pb-32 md:pb-6">
-      <Header title="AI Study Assistant" showBack />
+    <div className="w-full max-w-7xl mx-auto pb-32 md:pb-6">
+      <div className="hidden md:block">
+        <Header title="AI Study Assistant" showBack />
+      </div>
 
       <Card className="mt-6 mb-6 min-h-96 max-h-96 overflow-y-auto p-4 bg-slate-50">
         <div className="space-y-4">

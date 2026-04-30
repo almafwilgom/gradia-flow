@@ -28,6 +28,7 @@ import {
   ArrowRightOnRectangleIcon
 } from '@heroicons/react/24/outline';
 import { AcademicCapIcon } from '@heroicons/react/24/solid';
+import { PageWrapper } from '../components/PageWrapper';
 
 const navItems = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: <Squares2X2Icon className="w-5 h-5" />, roles: ['school_admin'] },
@@ -89,7 +90,9 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className={`${open ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 fixed md:relative z-30 w-64 h-full bg-sidebar text-slate-400 transition-transform duration-300 flex flex-col shadow-xl md:shadow-none`}>
         <div className="h-[72px] px-6 flex items-center gap-3 border-b border-white/5">
-          <AcademicCapIcon className="w-8 h-8 text-blue-400 shrink-0" />
+          <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-lg overflow-hidden shrink-0">
+            <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
+          </div>
           <span className="text-xl font-bold text-white tracking-wide">GradiaFlow</span>
         </div>
 
@@ -136,30 +139,30 @@ export default function Layout() {
       {/* Main Content View */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {/* Top Header */}
-        <header className="h-[72px] bg-white flex items-center justify-between px-4 md:px-8 shrink-0 relative z-10 shadow-sm">
+        <header className="h-[72px] bg-white/80 backdrop-blur-md sticky top-0 z-40 flex items-center justify-between px-4 md:px-8 border-b border-slate-100/50 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)]">
           <div className="flex items-center gap-4 flex-1">
             <button className="md:hidden text-slate-500 hover:text-slate-700" onClick={() => setOpen(true)}>
               <Bars3Icon className="w-6 h-6" />
             </button>
             <div className="relative w-full max-w-md hidden sm:block">
-              <MagnifyingGlassIcon className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+              <MagnifyingGlassIcon className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-blue-500/60" />
               <input 
                 type="text" 
-                placeholder="Search Dashboard..." 
-                className="w-full bg-slate-50/50 border border-slate-100 rounded-full py-2.5 pl-11 pr-4 text-sm text-slate-700 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-300 outline-none transition-all" 
+                placeholder="Search everything..." 
+                className="w-full bg-blue-50/30 border border-blue-100/50 rounded-2xl py-2.5 pl-11 pr-4 text-sm text-slate-700 placeholder-slate-400 focus:bg-white focus:ring-4 focus:ring-blue-50 focus:border-blue-300 outline-none transition-all" 
               />
             </div>
           </div>
           
           <div className="flex items-center gap-3 sm:gap-5">
-            <button className="relative text-slate-400 hover:text-slate-600 transition-colors">
+            <button className="relative p-2 rounded-xl bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200 group">
               <BellIcon className="w-6 h-6" />
-              <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+              <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white ring-2 ring-rose-500/20 animate-pulse"></span>
             </button>
-            <button className="relative text-slate-400 hover:text-slate-600 transition-colors hidden sm:block">
+            <button className="relative p-2 rounded-xl bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200 hidden sm:block">
               <ChatBubbleLeftEllipsisIcon className="w-6 h-6" />
             </button>
-            <div className="hidden sm:block w-px h-8 bg-slate-200"></div>
+            <div className="hidden sm:block w-px h-8 bg-slate-100"></div>
             
             <div className="flex items-center gap-3 cursor-pointer select-none">
               <div className="flex flex-col items-end hidden md:flex">
@@ -179,7 +182,9 @@ export default function Layout() {
 
         {/* Dashboard Content area */}
         <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
-          <Outlet />
+          <PageWrapper key={location.pathname}>
+            <Outlet />
+          </PageWrapper>
         </div>
       </main>
     </div>

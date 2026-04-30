@@ -73,7 +73,9 @@ export default function SuperAdminLayout() {
       {/* Sidebar */}
       <aside className={`${open ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 fixed md:relative z-30 w-64 h-full bg-sidebar text-slate-400 transition-transform duration-300 flex flex-col shadow-xl md:shadow-none`}>
         <div className="h-[72px] px-6 flex items-center gap-3 border-b border-white/5">
-          <AcademicCapIcon className="w-8 h-8 text-blue-400 shrink-0" />
+          <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-lg overflow-hidden shrink-0">
+            <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
+          </div>
           <span className="text-xl font-bold text-white tracking-wide">GradiaFlow</span>
         </div>
 

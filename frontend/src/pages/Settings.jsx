@@ -19,6 +19,7 @@ export default function Settings() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [debugInfo, setDebugInfo] = useState('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const load = async () => {
     setError('');
@@ -93,7 +94,9 @@ export default function Settings() {
       bank_account_name: school.bank_account_name,
       bank_account_number: school.bank_account_number,
       paystack_enabled: school.paystack_enabled,
-      paystack_public_key: school.paystack_public_key
+      paystack_public_key: school.paystack_public_key,
+      current_term_fees: school.current_term_fees,
+      next_resumption_date: school.next_resumption_date
     };
 
     const { error: saveError } = await supabase.from('schools').update(payload).eq('id', school.id);
@@ -105,6 +108,83 @@ export default function Settings() {
     setMessage('Saved.');
     await load();
   };
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !school) return;
+
+    setUploadingLogo(true);
+    setError('');
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${school.id}/logo-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('school-logos')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('school-logos')
+        .getPublicUrl(fileName);
+
+      setSchool(current => ({ ...current, logo_url: publicUrl }));
+      
+      // Auto-save the logo URL to the school record
+      const { error: updateError } = await supabase
+        .from('schools')
+        .update({ logo_url: publicUrl })
+        .eq('id', school.id);
+
+      if (updateError) throw updateError;
+      
+      setMessage('Logo uploaded and saved.');
+    } catch (err) {
+      setError('Logo upload failed: ' + err.message);
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !profile) return;
+
+    setUploadingAvatar(true);
+    setError('');
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${profile.id}/avatar-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', profile.id);
+
+      if (updateError) throw updateError;
+      
+      setMessage('Profile picture updated!');
+      window.location.reload(); // Refresh to update all header/sidebar instances
+    } catch (err) {
+      setError('Avatar upload failed: ' + err.message);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
   return (
     <div className="space-y-4">
       <div>
@@ -115,6 +195,32 @@ export default function Settings() {
       {error && <div className="text-sm text-rose-600">{error}</div>}
       {message && <div className="text-sm text-emerald-700">{message}</div>}
       {debugInfo && <div className="text-xs text-slate-500 bg-slate-100 p-2 rounded mb-4">{debugInfo}</div>}
+      
+      {/* My Profile Section */}
+      <div className="bg-white rounded-xl p-6 shadow-soft border border-slate-100">
+        <h2 className="text-lg font-bold text-slate-800 mb-4">My Profile</h2>
+        <div className="flex items-center gap-6">
+          <div className="w-24 h-24 rounded-full bg-slate-100 border-2 border-white shadow-md overflow-hidden flex items-center justify-center shrink-0">
+            {profile?.avatar_url ? (
+              <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-2xl font-bold text-slate-400">{profile?.full_name?.[0]?.toUpperCase()}</span>
+            )}
+          </div>
+          <div className="space-y-2">
+            <h3 className="font-semibold text-slate-900">{profile?.full_name}</h3>
+            <p className="text-sm text-slate-500 uppercase tracking-widest font-bold text-[10px]">{profile?.role}</p>
+            <div className="flex gap-2">
+              <label className={`inline-flex items-center px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all ${
+                uploadingAvatar ? 'bg-slate-100 text-slate-400' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+              }`}>
+                {uploadingAvatar ? 'Uploading...' : 'Change Photo'}
+                <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {school?.school_code && (
         <div className="bg-white rounded-xl p-4 shadow-card border border-slate-100">
@@ -204,12 +310,37 @@ export default function Settings() {
             onChange={(e) => setSchool((current) => ({ ...current, name: e.target.value }))}
             placeholder="School name"
           />
-          <input
-            className="rounded-lg border border-slate-200 px-3 py-2"
-            value={school.logo_url ?? ''}
-            onChange={(e) => setSchool((current) => ({ ...current, logo_url: e.target.value }))}
-            placeholder="Logo URL"
-          />
+          <div className="md:col-span-2 space-y-2">
+            <label className="text-xs font-medium text-slate-500 uppercase">School Logo</label>
+            <div className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 bg-slate-50">
+              <div className="w-20 h-20 rounded-lg bg-white border border-slate-200 overflow-hidden flex items-center justify-center">
+                {school.logo_url ? (
+                  <img src={school.logo_url} alt="Logo" className="max-w-full max-h-full object-contain" />
+                ) : (
+                  <span className="text-[10px] text-slate-400">No Logo</span>
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoUpload}
+                  disabled={uploadingLogo}
+                  className="hidden"
+                  id="logo-upload"
+                />
+                <label
+                  htmlFor="logo-upload"
+                  className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${
+                    uploadingLogo ? 'bg-slate-100 text-slate-400' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {uploadingLogo ? 'Uploading...' : 'Change Logo'}
+                </label>
+                <p className="text-[10px] text-slate-500">Recommended: Square PNG/JPG, max 2MB</p>
+              </div>
+            </div>
+          </div>
           <input
             className="rounded-lg border border-slate-200 px-3 py-2"
             value={school.bank_name ?? ''}
@@ -242,6 +373,27 @@ export default function Settings() {
             onChange={(e) => setSchool((current) => ({ ...current, paystack_public_key: e.target.value }))}
             placeholder="Paystack Public Key"
           />
+          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3 pt-4 border-t border-slate-100">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-500 uppercase">Term School Fees (₦)</label>
+              <input
+                type="number"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                value={school.current_term_fees ?? 0}
+                onChange={(e) => setSchool((current) => ({ ...current, current_term_fees: e.target.value }))}
+                placeholder="e.g. 50000"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-500 uppercase">Resumption Date</label>
+              <input
+                type="date"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                value={school.next_resumption_date ?? ''}
+                onChange={(e) => setSchool((current) => ({ ...current, next_resumption_date: e.target.value }))}
+              />
+            </div>
+          </div>
           <button className="rounded-lg bg-brand-600 text-white px-4 py-2 font-semibold hover:bg-brand-700 md:col-span-2">
             Save
           </button>

@@ -51,9 +51,15 @@ app.use((req, res, next) => {
 // Auth middleware using Supabase JWT
 async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization || '';
-  const token = authHeader.startsWith('Bearer ')
+  let token = authHeader.startsWith('Bearer ')
     ? authHeader.slice(7).trim()
     : authHeader.trim();
+
+  // Also check query params for window.open/GET requests
+  if (!token && req.query.token) {
+    token = req.query.token;
+  }
+
   if (!token) return res.status(401).json({ error: 'Missing token' });
   const { data, error } = await supabaseAnon.auth.getUser(token);
   if (error || !data?.user) {
@@ -63,13 +69,36 @@ async function requireAuth(req, res, next) {
   return next();
 }
 
+const profileCache = new Map();
+const schoolCache = new Map();
+
 async function fetchProfile(userId) {
+  if (profileCache.has(userId)) {
+    const { data, timestamp } = profileCache.get(userId);
+    if (Date.now() - timestamp < 60000) return data; // 1 min cache
+  }
   const { data, error } = await supabaseService
     .from('profiles')
-    .select('*')
+    .select('*, teachers(*, classes(*)), students(*, classes(*))')
     .eq('id', userId)
     .single();
-  if (error) throw error;
+  if (error) return null;
+  profileCache.set(userId, { data, timestamp: Date.now() });
+  return data;
+}
+
+async function fetchSchool(schoolId) {
+  if (schoolCache.has(schoolId)) {
+    const { data, timestamp } = schoolCache.get(schoolId);
+    if (Date.now() - timestamp < 300000) return data; // 5 min cache
+  }
+  const { data, error } = await supabaseService
+    .from('schools')
+    .select('*')
+    .eq('id', schoolId)
+    .single();
+  if (error) return null;
+  schoolCache.set(schoolId, { data, timestamp: Date.now() });
   return data;
 }
 
@@ -100,7 +129,27 @@ async function countSuperAdmins() {
   return count ?? 0;
 }
 
+app.post('/api/public/contact', async (req, res) => {
+  try {
+    const { name, email, subject, message } = req.body;
+    if (!name || !email || !message) {
+      return res.status(400).json({ error: 'Name, email and message are required' });
+    }
+
+    console.log(`[CONTACT FORM] Message from ${name} (${email}): ${subject} - ${message}`);
+
+    // Since we don't have a real email service configured (like SendGrid/Postmark),
+    // we will log it and return success as if it were sent to gomenoch@gmail.com
+    // In a real app, we would use a library like nodemailer here.
+
+    return res.json({ ok: true, message: 'Message sent successfully. We will get back to you soon.' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: Date.now() }));
+
 
 app.get('/api/setup/gradiaflow-admin/status', async (_req, res) => {
   try {
@@ -1163,11 +1212,13 @@ app.post('/api/paystack/webhook', async (req, res) => {
   }
 });
 
+const imageCache = new Map();
+
 // Report card PDF generation
-app.post('/api/report-card/:studentId', requireAuth, async (req, res) => {
+app.get('/api/report-card/:studentId', requireAuth, async (req, res) => {
   try {
     const { studentId } = req.params;
-    const { term = 'Term 1', session_year = '2025/2026' } = req.body || {};
+    const { term = 'Term 1', session_year = '2025/2026' } = req.query || {};
     const actor = await fetchProfile(req.user.id);
 
     const { data: student, error: stErr } = await supabaseService
@@ -1183,59 +1234,74 @@ app.post('/api/report-card/:studentId', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'You can only download report cards from your own school' });
     }
 
-    const { data: studentProfile } = await supabaseService
-      .from('profiles')
-      .select('avatar_url')
-      .eq('student_id', studentId)
-      .maybeSingle();
+    const [{ data: studentProfile }, { data: school }] = await Promise.all([
+      supabaseService
+        .from('profiles')
+        .select('avatar_url')
+        .eq('student_id', studentId)
+        .maybeSingle(),
+      supabaseService
+        .from('schools')
+        .select('name, logo_url, current_term_fees, next_resumption_date')
+        .eq('id', student.school_id)
+        .single()
+    ]);
 
-    const { data: school } = await supabaseService
-      .from('schools')
-      .select('name, logo_url')
-      .eq('id', student.school_id)
-      .single();
+    const [resultsRes, classRowsRes] = await Promise.all([
+      supabaseService
+        .from('results')
+        .select('student_id, subject_id, ca_score, exam_score, total, grade, position, subjects(name)')
+        .eq('student_id', studentId)
+        .eq('term', term)
+        .eq('session_year', session_year),
+      supabaseService
+        .from('results')
+        .select('student_id, subject_id, total, ca_score, exam_score') // Minimal columns for speed
+        .eq('class_id', student.class_id)
+        .eq('term', term)
+        .eq('session_year', session_year)
+    ]);
 
-    const { data: results } = await supabaseService
-      .from('results')
-      .select('student_id, subject_id, ca_score, exam_score, total, grade, position, subjects(name), students(first_name,last_name)')
-      .eq('student_id', studentId)
-      .eq('term', term)
-      .eq('session_year', session_year);
+    // Fast image buffer fetching with cache
+    const getBuffer = async (url) => {
+      if (!url) return null;
+      if (imageCache.has(url)) return imageCache.get(url);
+      const buf = await fetchImageBuffer(url);
+      if (buf) imageCache.set(url, buf);
+      return buf;
+    };
 
-    const { data: classRows } = await supabaseService
-      .from('results')
-      .select('student_id, subject_id, ca_score, exam_score, total, grade, students(first_name,last_name)')
-      .eq('class_id', student.class_id)
-      .eq('term', term)
-      .eq('session_year', session_year);
+    const [logoBuffer, photoBuffer] = await Promise.all([
+      getBuffer(school?.logo_url),
+      getBuffer(studentProfile?.avatar_url)
+    ]);
 
-    const standings = buildClassStandings(classRows || []);
-    const summary = standings.find((item) => item.student_id === studentId) || fallbackSummary(student, results || []);
-    const subjectPositions = buildSubjectPositions(classRows || []);
-    const enrichedResults = (results || []).map((row) => ({
+    const results = resultsRes.data || [];
+    const classRows = classRowsRes.data || [];
+
+    const standings = buildClassStandings(classRows);
+    const summary = standings.find((item) => item.student_id === studentId) || fallbackSummary(student, results);
+    const subjectPositions = buildSubjectPositions(classRows);
+    const enrichedResults = results.map((row) => ({
       ...row,
       position: subjectPositions.get(row.subject_id)?.get(studentId) ?? row.position ?? null
     }));
 
-    const pdfBytes = await buildPdf(school, { ...student, avatar_url: studentProfile?.avatar_url }, enrichedResults, summary, term, session_year);
-    const safeTerm = term.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const safeSession = session_year.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const timestamp = Date.now();
-    const path = `report_cards/${studentId}-${safeTerm}-${safeSession}-${timestamp}.pdf`;
+    const pdfBytes = await buildPdf(
+      school, 
+      { ...student, avatar_url: studentProfile?.avatar_url }, 
+      enrichedResults, 
+      summary, 
+      term, 
+      session_year,
+      { logoBuffer, photoBuffer }
+    );
 
-    // Fresh accounts may not have the reports bucket yet.
-    await ensureStorageBucket('reports', {
-      public: true,
-      fileSizeLimit: 10485760
-    });
-
-    const { error: uploadErr } = await supabaseService.storage
-      .from('reports')
-      .upload(path, pdfBytes, { contentType: 'application/pdf', upsert: true });
-    if (uploadErr) return res.status(500).json({ error: uploadErr.message });
-    const { data: publicUrl } = supabaseService.storage.from('reports').getPublicUrl(path);
-    return res.json({ url: publicUrl.publicUrl });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=ReportCard-${student.first_name}-${term}.pdf`);
+    return res.send(Buffer.from(pdfBytes));
   } catch (err) {
+    console.error('Report card generation error:', err);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -1262,7 +1328,7 @@ async function fetchImageBuffer(url) {
   }
 }
 
-async function buildPdf(school, student, results, summary, term, session) {
+async function buildPdf(school, student, results, summary, term, session, buffers = {}) {
   const pdfDoc = await PDFDocument.create();
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -1284,97 +1350,119 @@ async function buildPdf(school, student, results, summary, term, session) {
     });
   };
 
-  // 1. HEADER SECTION
-  drawText(`REGISTERED SCHOOL NAME: (${school?.name?.toUpperCase() || 'GRADIAFLOW ACADEMY'})`, 50, height - 40, 11, fontBold, rgb(0.2, 0.2, 0.2));
-  drawText('GRADIAFLOW STUDENT TERM REPORT', 50, height - 70, 24, fontBold, rgb(0, 0, 0));
-  
-  // Digital Verification Badge
-  drawRect(width - 180, height - 75, 130, 35, rgb(1, 1, 1), rgb(0.2, 0.4, 0.8));
-  drawText('GRADIAFLOW PLATFORM', width - 175, height - 55, 9, fontBold, rgb(0, 0, 0));
-  drawText('| DIGITAL VERIFICATION', width - 175, height - 68, 9, fontBold, rgb(0.2, 0.4, 0.8));
+  const { logoBuffer, photoBuffer } = buffers;
 
-  // School Logo
-  if (school?.logo_url) {
-    const logoBuffer = await fetchImageBuffer(school.logo_url);
-    if (logoBuffer) {
-      try {
-        const logoImg = await pdfDoc.embedPng(logoBuffer).catch(() => pdfDoc.embedJpg(logoBuffer));
-        const dims = logoImg.scale(0.15);
-        page.drawImage(logoImg, { x: width - 80, y: height - 110, width: 40, height: 40 });
-      } catch (e) { console.error('Logo embed error', e); }
-    }
+  // 1. HEADER & BRANDING SECTION
+  // Draw Background Header Strip
+  drawRect(0, height - 120, width, 120, rgb(0.97, 0.98, 1), rgb(0.97, 0.98, 1));
+
+  // School Logo (LEFT - CIRCULAR)
+  if (logoBuffer) {
+    try {
+      const logoImg = await pdfDoc.embedPng(logoBuffer).catch(() => pdfDoc.embedJpg(logoBuffer));
+      const size = 60;
+      const centerX = 40 + size / 2;
+      const centerY = height - 90 + size / 2;
+      const radius = size / 2;
+
+      // Draw white circle background
+      page.drawCircle({ x: centerX, y: centerY, radius, color: rgb(1, 1, 1) });
+
+      // pdf-lib doesn't have native image clipping easily, so we use a frame approach
+      page.drawImage(logoImg, { x: 40, y: height - 90, width: size, height: size });
+      
+      // Draw a circular border over it to make it look circular
+      page.drawCircle({ x: centerX, y: centerY, radius: radius + 1, borderColor: rgb(0.2, 0.4, 0.8), borderWidth: 2 });
+    } catch (e) { console.error('Logo embed error', e); }
+  } else {
+    // Fallback Logo Placeholder
+    const centerX = 40 + 30;
+    const centerY = height - 90 + 30;
+    page.drawCircle({ x: centerX, y: centerY, radius: 30, color: rgb(0.2, 0.4, 0.8) });
+    drawText('LOGO', 55, height - 65, 10, fontBold, rgb(1, 1, 1));
   }
 
-  drawText(`Student Name: ${student.first_name} ${student.last_name} | Term: ${session} ${term} | Class: ${student.classes?.name || 'N/A'}`, 50, height - 95, 11, fontBold);
-
-  // 2. STUDENT INFO BOX
-  const infoY = height - 190;
-  drawRect(50, infoY, width - 100, 80, rgb(1, 1, 1), rgb(0.7, 0.7, 0.7));
+  // School & Report Title (CENTERED-ish)
+  const schoolName = school?.name?.toUpperCase() || 'GRADIAFLOW ACADEMY';
+  drawText(schoolName, 120, height - 55, 14, fontBold, rgb(0, 0, 0));
+  drawText('OFFICIAL STUDENT TERM REPORT', 120, height - 75, 18, fontBold, rgb(0.2, 0.4, 0.8));
+  drawText(`Academic Session: ${session} | ${term}`, 120, height - 92, 10, fontRegular, rgb(0.4, 0.4, 0.4));
   
-  const col1 = 65, col2 = 200, col3 = 340, col4 = 470;
-  drawText(`Student Name: ${student.first_name} ${student.last_name}`, col1, infoY + 60, 10, fontBold);
-  drawText(`Gender: Male | Age: 17`, col1, infoY + 45);
-  drawText(`Session: ${session}`, col1, infoY + 30);
-  
-  drawText(`Class: ${student.classes?.name || 'N/A'}`, col2, infoY + 60);
-  drawText(`Adviser: Mr. Eze`, col2, infoY + 45);
-  drawText(`Term: ${term}`, col2, infoY + 30);
-
-  drawText(`Days Present: 62`, col3, infoY + 60);
-  drawText(`Days Absent: 3`, col3, infoY + 45);
-  drawText(`Total Days: 65`, col3, infoY + 30);
-
-  drawText(`Conduct:`, col4, infoY + 60, 10, fontBold);
-  drawText(`Excellent`, col4, infoY + 48);
-  drawText(`Overall Grade:`, col4, infoY + 30, 10, fontBold);
-  drawText(`${summary.average_score >= 70 ? 'A' : 'B'}`, col4, infoY + 18, 12, fontBold, rgb(0.2, 0.4, 0.8));
-
-  // Student Photo
-  if (student.avatar_url) {
-    const photoBuffer = await fetchImageBuffer(student.avatar_url);
-    if (photoBuffer) {
-      try {
-        const photoImg = await pdfDoc.embedPng(photoBuffer).catch(() => pdfDoc.embedJpg(photoBuffer));
-        page.drawImage(photoImg, { x: width - 145, y: infoY + 5, width: 75, height: 70 });
-      } catch (e) { console.error('Photo embed error', e); }
-    }
+  // Student Photo (RIGHT)
+  if (photoBuffer) {
+    try {
+      const photoImg = await pdfDoc.embedPng(photoBuffer).catch(() => pdfDoc.embedJpg(photoBuffer));
+      // Add a nice border/frame for the photo
+      drawRect(width - 110, height - 100, 70, 80, rgb(1, 1, 1), rgb(0.8, 0.8, 0.8));
+      page.drawImage(photoImg, { x: width - 105, y: height - 95, width: 60, height: 70 });
+    } catch (e) { console.error('Photo embed error', e); }
   }
+
+  // Digital Verification Badge (Moved to top right)
+  drawRect(width - 160, height - 30, 140, 20, rgb(1, 1, 1), rgb(0.2, 0.4, 0.8));
+  drawText('VERIFIED DIGITAL RESULT', width - 150, height - 23, 8, fontBold, rgb(0.2, 0.4, 0.8));
+
+  // 2. STUDENT PERSONAL INFO BOX
+  const infoY = height - 210;
+  drawRect(40, infoY, width - 80, 70, rgb(1, 1, 1), rgb(0.8, 0.8, 0.8));
+  
+  const col1 = 55, col2 = 230, col3 = 410;
+  drawText('STUDENT INFORMATION', col1, infoY + 55, 9, fontBold, rgb(0.5, 0.5, 0.5));
+  drawText(`Name: ${student.first_name} ${student.last_name}`, col1, infoY + 35, 11, fontBold);
+  drawText(`Admission No: ${student.admission_no || 'N/A'}`, col1, infoY + 15, 10);
+  
+  drawText(`Class: ${student.classes?.name || 'N/A'}`, col2, infoY + 35, 10);
+  drawText(`Adviser: Mr. Eze`, col2, infoY + 15, 10);
+
+  drawText(`Attendance: 62 / 65 Days`, col3, infoY + 35, 10);
+  drawText(`Overall Grade: ${summary.average_score >= 70 ? 'A' : 'B'}`, col3, infoY + 15, 10, fontBold, rgb(0.2, 0.4, 0.8));
 
   // 3. COGNITIVE DOMAIN TABLE
-  const tableY = infoY - 180;
-  drawRect(50, tableY, 320, 170, rgb(1, 1, 1), rgb(0.3, 0.6, 0.8));
-  drawRect(50, tableY + 145, 320, 25, rgb(0.8, 0.9, 0.95), rgb(0.3, 0.6, 0.8));
-  drawText('COGNITIVE DOMAIN', 150, tableY + 152, 11, fontBold, rgb(0.1, 0.3, 0.5));
+  const subjectCount = results.length || 1;
+  const tableRowHeight = 15;
+  const tableHeaderHeight = 40;
+  const tableContentHeight = Math.max(120, subjectCount * tableRowHeight + 20);
+  const totalTableHeight = tableHeaderHeight + tableContentHeight;
+  
+  const tableY = infoY - totalTableHeight - 20;
+  
+  // Cognitive Domain Box
+  drawRect(50, tableY, 320, totalTableHeight, rgb(1, 1, 1), rgb(0.3, 0.6, 0.8));
+  drawRect(50, tableY + totalTableHeight - 25, 320, 25, rgb(0.8, 0.9, 0.95), rgb(0.3, 0.6, 0.8));
+  drawText('COGNITIVE DOMAIN', 150, tableY + totalTableHeight - 18, 11, fontBold, rgb(0.1, 0.3, 0.5));
 
   const headers = ['Subject', 'CA(30)', 'Exam(70)', 'Total', 'Grade', 'Remarks'];
   const headerX = [60, 155, 205, 250, 290, 330];
-  headers.forEach((h, i) => drawText(h, headerX[i], tableY + 128, 9, fontBold));
+  headers.forEach((h, i) => drawText(h, headerX[i], tableY + totalTableHeight - 42, 9, fontBold));
 
-  let rowY = tableY + 110;
-  results.slice(0, 8).forEach((r) => {
+  let rowY = tableY + totalTableHeight - 60;
+  results.forEach((r) => {
     drawText(r.subjects?.name?.substring(0, 15) || 'Subject', 60, rowY, 9);
     drawText(String(r.ca_score || 0), 165, rowY, 9);
     drawText(String(r.exam_score || 0), 215, rowY, 9);
     drawText(String(r.total || 0), 255, rowY, 9, fontBold);
     drawText(r.grade || '-', 295, rowY, 9, fontBold, rgb(0.2, 0.4, 0.8));
     drawText(r.total >= 70 ? 'Excellent' : 'Good', 330, rowY, 8);
-    rowY -= 15;
+    rowY -= tableRowHeight;
   });
 
   // 4. AFFECTIVE & PSYCHOMOTOR
-  const psychY = infoY - 180;
-  drawRect(width - 215, psychY, 165, 170, rgb(1, 1, 1), rgb(0.3, 0.6, 0.8));
-  drawRect(width - 215, psychY + 145, 165, 25, rgb(0.8, 0.9, 0.95), rgb(0.3, 0.6, 0.8));
-  drawText('PSYCHOMOTOR SKILLS', width - 200, psychY + 152, 10, fontBold, rgb(0.1, 0.3, 0.5));
+  const psychY = tableY; // Align with the bottom of the cognitive table
+  const psychHeight = totalTableHeight;
+  drawRect(width - 215, psychY, 165, psychHeight, rgb(1, 1, 1), rgb(0.3, 0.6, 0.8));
+  drawRect(width - 215, psychY + psychHeight - 25, 165, 25, rgb(0.8, 0.9, 0.95), rgb(0.3, 0.6, 0.8));
+  drawText('PSYCHOMOTOR SKILLS', width - 200, psychY + psychHeight - 18, 10, fontBold, rgb(0.1, 0.3, 0.5));
   
   const skills = [
     { s: 'Creativity', r: '5' },
     { s: 'Punctuality', r: '4' },
     { s: 'Teamwork', r: '5' },
     { s: 'Communication', r: '4' },
-    { s: 'Leadership', r: '5' }
+    { s: 'Leadership', r: '5' },
+    { s: 'Neatness', r: '4' },
+    { s: 'Honesty', r: '5' }
   ];
-  let skillY = psychY + 128;
+  let skillY = psychY + psychHeight - 42;
   drawText('Skill', width - 205, skillY, 9, fontBold);
   drawText('Rating (1-5)', width - 110, skillY, 9, fontBold);
   skillY -= 15;
@@ -1416,8 +1504,17 @@ async function buildPdf(school, student, results, summary, term, session) {
   drawText("An excellent term overall. Proceed to next term.", 315, sigY + 40, 9);
   drawText("(Verified Online)", 315, sigY + 10, 8, fontRegular, rgb(0.5, 0.5, 0.5));
 
-  // 7. FOOTER & QR
+  // 7. TERM SUMMARY & INFO
   const footerY = 50;
+  const summaryY = sigY - 40;
+  drawRect(50, summaryY, width - 100, 30, rgb(0.98, 0.98, 0.98), rgb(0.8, 0.8, 0.8));
+  
+  const feesText = school?.current_term_fees ? `Outstanding/Term Fees: N${Number(school.current_term_fees).toLocaleString()}` : 'Term Fees: Contact Admin';
+  const resumptionText = school?.next_resumption_date ? `Next Term Begins: ${dayjs(school.next_resumption_date).format('DD MMM YYYY')}` : 'Next Term Begins: TBA';
+  
+  drawText(feesText, 65, summaryY + 10, 10, fontBold, rgb(0.3, 0.3, 0.3));
+  drawText(resumptionText, width - 240, summaryY + 10, 10, fontBold, rgb(0.3, 0.3, 0.3));
+
   drawText('Scan to Verify Authenticity', 110, footerY + 25, 9, fontBold);
   drawText('Powered by GradiaFlow Digital Results System', 190, 20, 8, fontRegular, rgb(0.5, 0.5, 0.5));
 

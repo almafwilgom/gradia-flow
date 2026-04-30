@@ -140,10 +140,21 @@ function createPDFContent(reportCard = {}) {
       <div style="border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden;">
         <div style="background: #111827; color: #ffffff; padding: 24px 28px;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 20px;">
-            <div>
-              <div style="font-size: 28px; font-weight: 700;">${escapeHtml(school.name || 'Academic Report Card')}</div>
-              <div style="font-size: 14px; margin-top: 6px; opacity: 0.9;">${escapeHtml(school.address || '')}</div>
-              <div style="font-size: 14px; margin-top: 4px; opacity: 0.9;">${escapeHtml(termLabel)} ${sessionYear ? `• ${escapeHtml(sessionYear)}` : ''}</div>
+            <div style="display: flex; align-items: flex-start; gap: 16px;">
+              ${
+                school.logo_url
+                  ? `
+                    <div style="width: 80px; height: 80px; background: #ffffff; border-radius: 12px; padding: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #e5e7eb;">
+                      <img src="${school.logo_url}" alt="School logo" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
+                    </div>
+                  `
+                  : ''
+              }
+              <div>
+                <div style="font-size: 28px; font-weight: 700;">${escapeHtml(school.name || 'Academic Report Card')}</div>
+                <div style="font-size: 14px; margin-top: 6px; opacity: 0.9;">${escapeHtml(school.address || '')}</div>
+                <div style="font-size: 14px; margin-top: 4px; opacity: 0.9;">${escapeHtml(termLabel)} ${sessionYear ? `• ${escapeHtml(sessionYear)}` : ''}</div>
+              </div>
             </div>
             ${
               qrCodeDataUrl

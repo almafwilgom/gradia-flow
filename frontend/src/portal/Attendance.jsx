@@ -50,8 +50,10 @@ export default function PortalAttendance() {
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-2xl mx-auto pb-6">
-      <Header title="Attendance" showBack />
+    <div className="w-full max-w-7xl mx-auto pb-6">
+      <div className="hidden md:block">
+        <Header title="Attendance" showBack />
+      </div>
 
       {/* Attendance Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6 mb-6">

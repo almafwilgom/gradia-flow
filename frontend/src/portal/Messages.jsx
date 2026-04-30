@@ -106,8 +106,10 @@ export default function PortalMessages() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-2xl mx-auto pb-32 md:pb-6">
-      <Header title="Messages" showBack />
+    <div className="w-full max-w-7xl mx-auto pb-32 md:pb-6">
+      <div className="hidden md:block">
+        <Header title="Messages" showBack />
+      </div>
 
       {/* Teacher Selector */}
       {teachers.length > 1 && (
@@ -133,7 +135,7 @@ export default function PortalMessages() {
       )}
 
       {/* Messages Display */}
-      <Card className="mb-6 min-h-96 max-h-96 overflow-y-auto p-4">
+      <Card className="mb-6 min-h-[400px] max-h-[600px] overflow-y-auto p-4 bg-slate-50">
         {error ? (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}
@@ -141,11 +143,16 @@ export default function PortalMessages() {
         ) : null}
 
         {loading ? (
-          <p className="text-slate-600 text-center">Loading messages...</p>
+          <p className="text-slate-600 text-center py-10">Loading messages...</p>
         ) : messages.length === 0 ? (
-          <p className="text-slate-600 text-center">No messages yet</p>
+          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+            <svg className="w-12 h-12 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <p>No messages yet with this teacher</p>
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {messages.map((msg) => (
               <ChatBubble
                 key={msg.id}
@@ -169,10 +176,10 @@ export default function PortalMessages() {
               if (e.key === 'Enter' && !sending) sendMessage();
             }}
             placeholder="Type your message..."
-            className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
+            className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 shadow-sm"
           />
-          <Button variant="primary" onClick={sendMessage} disabled={sending || !selectedTeacher}>
-            {sending ? 'Sending...' : 'Send'}
+          <Button variant="primary" onClick={sendMessage} disabled={sending || !selectedTeacher} className="px-6 rounded-xl">
+            {sending ? '...' : 'Send'}
           </Button>
         </div>
       </Card>

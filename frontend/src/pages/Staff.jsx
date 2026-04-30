@@ -43,7 +43,7 @@ export default function Staff() {
       const [{ data: staffData, error: staffErr }, { data: classData, error: classErr }] = await Promise.all([
         supabase
           .from('teachers')
-          .select('id, profile_id, class_id, responsibilities, school_id, created_at, profiles(full_name), classes(name, level)')
+          .select('id, profile_id, class_id, responsibilities, school_id, status, created_at, profiles(full_name), classes(name, level)')
           .eq('school_id', profile?.school_id)
           .limit(50),
         supabase
@@ -120,6 +120,20 @@ export default function Staff() {
       const { error: updateErr } = await supabase
         .from('teachers')
         .update({ class_id: newClassId })
+        .eq('id', staffId);
+      if (updateErr) throw updateErr;
+      load();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const toggleStaffStatus = async (staffId, currentStatus) => {
+    const newStatus = currentStatus === 'disabled' ? 'active' : 'disabled';
+    try {
+      const { error: updateErr } = await supabase
+        .from('teachers')
+        .update({ status: newStatus })
         .eq('id', staffId);
       if (updateErr) throw updateErr;
       load();
@@ -210,27 +224,50 @@ export default function Staff() {
         <SimpleTable
           headers={['Name', 'Class Assignment', 'Role', 'Joined', 'Actions']}
           rows={staff.map((s) => [
-            s.profiles?.full_name ?? 'N/A',
+            <div className="flex flex-col">
+              <span className="font-medium text-slate-900">{s.profiles?.full_name ?? 'N/A'}</span>
+              <span className={`text-[10px] font-bold uppercase tracking-widest ${s.status === 'disabled' ? 'text-rose-500' : 'text-emerald-500'}`}>
+                {s.status || 'active'}
+              </span>
+            </div>,
             <select
               key={`class-select-${s.id}`}
-              className="text-sm border border-slate-200 rounded px-2 py-1 bg-white"
+              className={`text-sm border rounded-lg px-2 py-1 bg-white focus:ring-2 focus:ring-blue-100 outline-none transition-all ${s.status === 'disabled' ? 'opacity-50 grayscale' : ''}`}
               value={s.class_id || ''}
               onChange={(e) => updateStaffClass(s.id, e.target.value)}
+              disabled={s.status === 'disabled'}
             >
               <option value="">Unassigned</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>{c.name} ({c.level})</option>
-              ))}
+              {SCHOOL_SECTIONS.map((section) => {
+                const sectionClasses = classGroups[section.value] ?? [];
+                if (sectionClasses.length === 0) return null;
+                return (
+                  <optgroup key={section.value} label={section.label}>
+                    {sectionClasses.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
             </select>,
             'Teacher',
             new Date(s.created_at).toDateString(),
-            <button
-              key={`delete-${s.id}`}
-              onClick={() => deleteStaff(s.id, s.profiles?.full_name)}
-              className="text-rose-600 hover:text-rose-800 font-medium text-sm"
-            >
-              Delete
-            </button>
+            <div key={`actions-${s.id}`} className="flex items-center gap-3">
+              <button
+                onClick={() => toggleStaffStatus(s.id, s.status)}
+                className={`font-medium text-sm transition-colors ${s.status === 'disabled' ? 'text-emerald-600 hover:text-emerald-800' : 'text-amber-600 hover:text-amber-800'}`}
+              >
+                {s.status === 'disabled' ? 'Enable' : 'Disable'}
+              </button>
+              <button
+                onClick={() => deleteStaff(s.id, s.profiles?.full_name)}
+                className="text-rose-600 hover:text-rose-800 font-medium text-sm"
+              >
+                Delete
+              </button>
+            </div>
           ])}
         />
       </div>
