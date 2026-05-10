@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Link, useNavigate } from 'react-router-dom';
-
+import { API_URL } from '../../lib/api';
 const roles = [
   { value: 'school_admin', label: 'School Admin' },
   { value: 'teacher', label: 'Teacher' },
@@ -27,7 +27,7 @@ export default function Register() {
   const navigate = useNavigate();
 
   const normalizeSchoolCode = (value) => String(value || '').trim().toUpperCase();
-  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+  const apiBaseUrl = API_URL || 'http://localhost:4000';
 
   useEffect(() => {
     supabase

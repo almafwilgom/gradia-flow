@@ -6,7 +6,7 @@ import Button from '../components/Button';
 import Header from '../components/Header';
 import BottomActionBar from '../components/BottomActionBar';
 import { Link } from 'react-router-dom';
-import { apiFetch } from '../lib/api';
+import { apiFetch, API_URL } from '../lib/api';
 
 export default function PortalResults() {
   const { profile } = useAuth();
@@ -93,7 +93,7 @@ export default function PortalResults() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('Session expired');
 
-      const url = `${import.meta.env.VITE_API_URL}/api/report-card/${profile.student_id}` + 
+      const url = `${API_URL}/api/report-card/${profile.student_id}` + 
                  `?term=${encodeURIComponent(selectedSession.term)}` +
                  `&session_year=${encodeURIComponent(selectedSession.session_year)}` +
                  `&token=${session.access_token}`;

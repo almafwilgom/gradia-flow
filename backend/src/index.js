@@ -56,7 +56,7 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.includes(origin) || origin.startsWith('http://192.168.') || origin.startsWith('http://10.') || origin.startsWith('http://localhost:')) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -162,12 +162,12 @@ async function countSuperAdmins() {
 
 app.post('/api/public/contact', async (req, res) => {
   try {
-    const { name, email, subject, message } = req.body;
+    const { name, email, phone, schoolName, subject, message } = req.body;
     if (!name || !email || !message) {
       return res.status(400).json({ error: 'Name, email and message are required' });
     }
 
-    console.log(`[CONTACT FORM] Message from ${name} (${email}): ${subject} - ${message}`);
+    console.log(`[CONTACT FORM] Message from ${name} (${email}) [Phone: ${phone || 'N/A'}, School: ${schoolName || 'N/A'}]: ${subject} - ${message}`);
 
     if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
       const transporter = nodemailer.createTransport({
@@ -189,6 +189,8 @@ app.post('/api/public/contact', async (req, res) => {
           <h3>New Message from GradiaFlow Website</h3>
           <p><strong>Name:</strong> ${name}</p>
           <p><strong>Email:</strong> ${email}</p>
+          ${phone ? `<p><strong>Phone:</strong> ${phone}</p>` : ''}
+          ${schoolName ? `<p><strong>School Name:</strong> ${schoolName}</p>` : ''}
           <p><strong>Subject:</strong> ${subject}</p>
           <hr/>
           <p>${message.replace(/\n/g, '<br/>')}</p>

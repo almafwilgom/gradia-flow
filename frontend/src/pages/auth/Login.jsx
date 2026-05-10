@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { API_URL } from '../../lib/api';
 
 const roles = [
   { value: 'super_admin', label: 'Super Admin' },
@@ -22,7 +23,7 @@ export default function Login() {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const verifyNotice = params.get('verify') === '1';
-  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+  const apiBaseUrl = API_URL || 'http://localhost:4000';
 
   const handleLogin = async (e) => {
     e.preventDefault();

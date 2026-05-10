@@ -1,14 +1,19 @@
 import { useState } from 'react';
 
+import { API_URL } from '../lib/api';
+
 export default function ContactUs() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    phone: '',
+    schoolName: '',
     subject: '',
     message: ''
   });
   const [status, setStatus] = useState({ type: '', message: '' });
   const [loading, setLoading] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -16,7 +21,7 @@ export default function ContactUs() {
     setStatus({ type: '', message: '' });
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/public/contact`, {
+      const response = await fetch(`${API_URL}/api/public/contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -25,8 +30,8 @@ export default function ContactUs() {
       const data = await response.json();
 
       if (response.ok) {
-        setStatus({ type: 'success', message: 'Thank you! Your message has been sent to gomenoch@gmail.com and our team will get back to you.' });
-        setFormData({ name: '', email: '', subject: '', message: '' });
+        setShowSuccessModal(true);
+        setFormData({ name: '', email: '', phone: '', schoolName: '', subject: '', message: '' });
       } else {
         setStatus({ type: 'error', message: data.error || 'Failed to send message. Please try again.' });
       }
@@ -39,7 +44,7 @@ export default function ContactUs() {
 
   return (
     <div className="pt-20">
-      <section className="bg-white py-24 sm:py-32">
+      <section className="bg-white py-24 sm:py-32 relative">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="mx-auto max-w-2xl lg:text-center mb-16">
             <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Contact Us</h2>
@@ -111,9 +116,9 @@ export default function ContactUs() {
             </div>
 
             {/* Form */}
-            <div className="bg-white rounded-3xl p-10 shadow-xl shadow-slate-100 border border-slate-100">
-              {status.message && (
-                <div className={`mb-8 p-4 rounded-xl text-sm font-medium ${status.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
+            <div className="bg-white rounded-3xl p-10 shadow-xl shadow-slate-100 border border-slate-100 relative">
+              {status.message && status.type === 'error' && (
+                <div className="mb-8 p-4 rounded-xl text-sm font-medium bg-rose-50 text-rose-700 border border-rose-100">
                   {status.message}
                 </div>
               )}
@@ -138,6 +143,29 @@ export default function ContactUs() {
                       placeholder="john@example.com"
                       value={formData.email}
                       onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label htmlFor="phone" className="text-sm font-semibold text-slate-700">Phone Number <span className="text-slate-400 font-normal">(Optional)</span></label>
+                    <input 
+                      type="tel" id="phone"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all"
+                      placeholder="+234..."
+                      value={formData.phone}
+                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="schoolName" className="text-sm font-semibold text-slate-700">Name of School <span className="text-slate-400 font-normal">(Optional)</span></label>
+                    <input 
+                      type="text" id="schoolName"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all"
+                      placeholder="Sunrise Academy"
+                      value={formData.schoolName}
+                      onChange={(e) => setFormData({...formData, schoolName: e.target.value})}
                     />
                   </div>
                 </div>
@@ -174,6 +202,29 @@ export default function ContactUs() {
             </div>
           </div>
         </div>
+
+        {/* Success Modal */}
+        {showSuccessModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl transform transition-all animate-in zoom-in-95 duration-200">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h3 className="text-2xl font-bold text-center text-slate-900 mb-2">Message Sent!</h3>
+              <p className="text-slate-600 text-center mb-8">
+                Thank you! Your message has been sent successfully and our team will get back to you shortly.
+              </p>
+              <button
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full bg-slate-900 text-white font-semibold py-3 rounded-xl hover:bg-slate-800 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );

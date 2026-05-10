@@ -2,9 +2,15 @@ import NProgress from 'nprogress';
 import 'nprogress/nprogress.css';
 import { supabase } from './supabaseClient';
 
-const base = import.meta.env.VITE_API_URL;
+export const API_URL = (() => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl === 'http://localhost:4000' && window.location.hostname !== 'localhost') {
+    return `http://${window.location.hostname}:4000`;
+  }
+  return envUrl;
+})();
 
-// Configure NProgress
+const base = API_URL;// Configure NProgress
 NProgress.configure({ showSpinner: false, speed: 400, minimum: 0.2 });
 
 export async function apiFetch(path, { method = 'GET', token, body } = {}) {
