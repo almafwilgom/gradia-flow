@@ -204,6 +204,20 @@ export default function Students() {
     }
   };
 
+  const toggleStudentStatus = async (studentId, currentStatus) => {
+    const newStatus = currentStatus === 'disabled' ? 'active' : 'disabled';
+    try {
+      const { error: updateErr } = await supabase
+        .from('students')
+        .update({ status: newStatus })
+        .eq('id', studentId);
+      if (updateErr) throw updateErr;
+      load();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const deleteStudent = async (studentId, name) => {
     if (!window.confirm(`Are you sure you want to delete ${name}? This will permanently remove the student and their records.`)) return;
     try {
@@ -390,24 +404,39 @@ export default function Students() {
         <SimpleTable
           headers={['Name', 'Code', 'Parent', 'Section', 'Class', 'Stream', 'Status', 'Actions']}
           rows={students.map((student) => [
-            `${student.first_name} ${student.last_name}`,
+            <div className="flex flex-col">
+              <span className="font-medium text-slate-900">{`${student.first_name} ${student.last_name}`}</span>
+              <span className={`text-[10px] font-bold uppercase tracking-widest ${student.status === 'disabled' ? 'text-rose-500' : 'text-emerald-500'}`}>
+                {student.status || 'active'}
+              </span>
+            </div>,
             student.student_code ?? '-',
             student.parents?.full_name ?? '-',
             formatSection(student.classes?.level),
             <select
               key={`student-class-${student.id}`}
-              className="text-sm border border-slate-200 rounded px-2 py-1 bg-white"
+              className={`text-sm border rounded-lg px-2 py-1 bg-white focus:ring-2 focus:ring-blue-100 outline-none transition-all ${student.status === 'disabled' ? 'opacity-50 grayscale' : ''}`}
               value={student.class_id || ''}
               onChange={(e) => updateStudentClass(student.id, e.target.value)}
-              disabled={profile?.role === 'teacher'}
+              disabled={profile?.role === 'teacher' || student.status === 'disabled'}
             >
               <option value="">Unassigned</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>{c.name} ({c.level})</option>
-              ))}
+              {SCHOOL_SECTIONS.map((section) => {
+                const sectionClasses = classGroups[section.value] ?? [];
+                if (sectionClasses.length === 0) return null;
+                return (
+                  <optgroup key={section.value} label={section.label}>
+                    {sectionClasses.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
             </select>,
             student.streams?.name ?? '-',
-            student.status,
+            student.status === 'disabled' ? 'Inactive' : 'Active',
             <div key={`actions-${student.id}`} className="flex items-center gap-3">
               {!student.profiles?.id && profile?.role !== 'teacher' && (
                 <button
@@ -415,9 +444,15 @@ export default function Students() {
                   className="text-emerald-600 hover:text-emerald-800 text-sm font-bold"
                   title="Enable Portal Access"
                 >
-                  Create Account
+                  Invite
                 </button>
               )}
+              <button
+                onClick={() => toggleStudentStatus(student.id, student.status)}
+                className={`font-medium text-sm transition-colors ${student.status === 'disabled' ? 'text-emerald-600 hover:text-emerald-800' : 'text-amber-600 hover:text-amber-800'}`}
+              >
+                {student.status === 'disabled' ? 'Enable' : 'Disable'}
+              </button>
               <button
                 onClick={() => deleteStudent(student.id, `${student.first_name} ${student.last_name}`)}
                 className="text-rose-600 hover:text-rose-800 text-sm font-medium"

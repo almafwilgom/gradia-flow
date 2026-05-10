@@ -114,9 +114,9 @@ export default function SuperAdminLayout() {
       {/* Main Content View */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {/* Top Header */}
-        <header className="h-[72px] bg-white flex items-center justify-between px-4 md:px-8 shrink-0 relative z-10 shadow-sm">
+        <header className="h-[72px] bg-gradient-to-r from-sidebar to-slate-800 flex items-center justify-between px-4 md:px-8 shrink-0 relative z-10 shadow-md border-b border-slate-700/50">
           <div className="flex items-center gap-4 flex-1">
-            <button className="md:hidden text-slate-500 hover:text-slate-700" onClick={() => setOpen(true)}>
+            <button className="md:hidden text-slate-300 hover:text-white transition-colors" onClick={() => setOpen(true)}>
               <Bars3Icon className="w-6 h-6" />
             </button>
             <div className="relative w-full max-w-md hidden sm:block">
@@ -127,7 +127,7 @@ export default function SuperAdminLayout() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearch}
-                className="w-full bg-slate-50/50 border border-slate-100 rounded-full py-2.5 pl-11 pr-4 text-sm text-slate-700 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-300 outline-none transition-all" 
+                className="w-full bg-slate-800/50 border border-slate-600/50 rounded-full py-2.5 pl-11 pr-4 text-sm text-white placeholder-slate-400 focus:bg-slate-700 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all" 
               />
             </div>
           </div>
@@ -139,10 +139,10 @@ export default function SuperAdminLayout() {
                   setShowNotifications(!showNotifications);
                   setShowMessages(false);
                 }}
-                className={`relative p-2 rounded-full transition-colors ${showNotifications ? 'bg-slate-100 text-blue-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+                className={`relative p-2 rounded-full transition-colors ${showNotifications ? 'bg-slate-700 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'}`}
               >
                 <BellIcon className="w-6 h-6" />
-                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-slate-800"></span>
               </button>
 
               {showNotifications && (
@@ -177,10 +177,10 @@ export default function SuperAdminLayout() {
                   setShowMessages(!showMessages);
                   setShowNotifications(false);
                 }}
-                className={`relative p-2 rounded-full transition-colors ${showMessages ? 'bg-slate-100 text-blue-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+                className={`relative p-2 rounded-full transition-colors ${showMessages ? 'bg-slate-700 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'}`}
               >
                 <ChatBubbleLeftEllipsisIcon className="w-6 h-6" />
-                <span className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full border-2 border-white"></span>
+                <span className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full border-2 border-slate-800"></span>
               </button>
 
               {showMessages && (
@@ -212,22 +212,22 @@ export default function SuperAdminLayout() {
               )}
             </div>
 
-            <div className="hidden sm:block w-px h-8 bg-slate-200 mx-1"></div>
+            <div className="hidden sm:block w-px h-8 bg-slate-700 mx-1"></div>
             
             <div className="flex items-center gap-3 cursor-pointer select-none group">
               <div className="flex flex-col items-end hidden md:flex">
-                <span className="text-sm font-bold text-slate-700 leading-tight group-hover:text-blue-600 transition-colors">{profile?.full_name || 'James Adetegan'}</span>
+                <span className="text-sm font-bold text-white leading-tight group-hover:text-blue-400 transition-colors">{profile?.full_name || 'James Adetegan'}</span>
                 <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Super Admin</span>
               </div>
               <div className="relative">
                 {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} alt="Profile" className="w-10 h-10 rounded-xl object-cover border-2 border-white shadow-sm ring-1 ring-slate-100" />
+                  <img src={profile.avatar_url} alt="Profile" className="w-10 h-10 rounded-xl object-cover border-2 border-slate-700 shadow-sm ring-1 ring-slate-600" />
                 ) : (
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-500 text-white flex items-center justify-center font-bold shadow-sm border-2 border-white ring-1 ring-slate-100">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-500 to-blue-600 text-white flex items-center justify-center font-bold shadow-sm border-2 border-slate-700 ring-1 ring-slate-600">
                     {getInitials(profile?.full_name)}
                   </div>
                 )}
-                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-slate-800"></div>
               </div>
             </div>
           </div>

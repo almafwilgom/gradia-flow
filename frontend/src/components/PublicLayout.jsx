@@ -19,8 +19,8 @@ export default function PublicLayout() {
       <header 
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
           isScrolled 
-            ? 'bg-white/90 backdrop-blur-md shadow-lg py-3' 
-            : 'bg-transparent py-6'
+            ? 'bg-sidebar/95 backdrop-blur-md shadow-2xl py-3 border-b border-white/10' 
+            : 'bg-sidebar py-6 border-b border-white/5'
         }`}
       >
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-brand-400 via-indigo-500 to-emerald-500 opacity-70"></div>
@@ -29,23 +29,23 @@ export default function PublicLayout() {
             <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-xl flex items-center justify-center shadow-xl group-hover:scale-110 transition-all overflow-hidden border-2 border-brand-500 animate-pulse-subtle">
               <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
             </div>
-            <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
-              Gradia<span className="text-brand-600">Flow</span>
+            <span className="text-xl sm:text-2xl font-black tracking-tight text-white">
+              Gradia<span className="text-brand-400">Flow</span>
             </span>
           </Link>
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-8">
-            <Link to="/" className="text-sm font-medium text-slate-600 hover:text-brand-600 transition-colors">Home</Link>
-            <Link to="/about" className="text-sm font-medium text-slate-600 hover:text-brand-600 transition-colors">About Us</Link>
-            <Link to="/services" className="text-sm font-medium text-slate-600 hover:text-brand-600 transition-colors">Services</Link>
-            <Link to="/contact" className="text-sm font-medium text-slate-600 hover:text-brand-600 transition-colors">Contact</Link>
+            <Link to="/" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Home</Link>
+            <Link to="/about" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">About Us</Link>
+            <Link to="/services" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Services</Link>
+            <Link to="/contact" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Contact</Link>
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-4">
             <div className="hidden sm:flex items-center gap-4">
-              <Link to="/login" className="text-sm font-medium text-slate-600 hover:text-brand-600 transition-colors">Login</Link>
-              <Link to="/register" className="bg-brand-600 text-white px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-brand-700 transition-all shadow-lg shadow-brand-200">
+              <Link to="/login" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Login</Link>
+              <Link to="/register" className="bg-brand-500 text-white px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-brand-600 transition-all shadow-lg shadow-brand-500/30 border border-brand-400/50">
                 Get Started
               </Link>
             </div>
@@ -53,7 +53,7 @@ export default function PublicLayout() {
             {/* Mobile Menu Toggle */}
             <button 
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden p-2 text-slate-600 hover:text-brand-600 transition-colors"
+              className="md:hidden p-2 text-slate-300 hover:text-white transition-colors"
             >
               {isMenuOpen ? (
                 <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">

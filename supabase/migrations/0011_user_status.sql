@@ -3,3 +3,6 @@ alter table public.profiles add column if not exists status text default 'active
 
 -- Add status to teachers as well for more granular control if needed
 alter table public.teachers add column if not exists status text default 'active';
+
+-- Add status to students table
+alter table public.students add column if not exists status text default 'active';

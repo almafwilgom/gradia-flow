@@ -164,6 +164,34 @@ export default function Results() {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [reportMsg, setReportMsg] = useState('');
   const [error, setError] = useState(null);
+  const [ocrLoading, setOcrLoading] = useState(false);
+
+  const handleAIScan = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setOcrLoading(true);
+    setReportMsg('Analyzing photo...');
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const base64Image = reader.result;
+        const res = await apiFetch('/api/ocr', {
+          method: 'POST',
+          body: { base64Image }
+        });
+        setReportMsg('Scan complete. Extracted Text:\n' + (res.text || 'No text found'));
+      };
+      reader.onerror = () => {
+        setReportMsg('Failed to read image.');
+      };
+    } catch (err) {
+      setReportMsg('OCR failed.');
+    } finally {
+      setOcrLoading(false);
+    }
+  };
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -752,10 +780,7 @@ export default function Results() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                 </svg>
                 Scan Photo (AI)
-                <input type="file" className="hidden" accept="image/*" onChange={() => {
-                  setReportMsg("AI Scanning is analyzing the photo... (Mock-up)");
-                  setTimeout(() => setReportMsg("Scan complete. Data extracted!"), 3000);
-                }} />
+                <input type="file" className="hidden" accept="image/*" onChange={handleAIScan} disabled={ocrLoading} />
               </label>
 
               <button 

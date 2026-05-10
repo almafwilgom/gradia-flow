@@ -36,7 +36,7 @@ export default function Home() {
           <div className="mt-16 flow-root sm:mt-24">
             <div className="-m-2 rounded-xl bg-slate-900/5 p-2 ring-1 ring-inset ring-slate-900/10 lg:-m-4 lg:rounded-2xl lg:p-4">
               <div className="rounded-md bg-white shadow-2xl ring-1 ring-slate-900/10 overflow-hidden">
-                <img src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=2070&auto=format&fit=crop" alt="App screenshot" className="w-full" />
+                <img src="/hero-nigerian.png" alt="Nigerian Students and Teacher" className="w-full rounded-2xl shadow-2xl" />
               </div>
             </div>
           </div>

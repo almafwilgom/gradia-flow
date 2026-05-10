@@ -48,6 +48,14 @@ app.use((req, res, next) => {
   next();
 });
 
+// OCR route using OCR.Space (free tier)
+import ocrRouter from './routes/ocr.js';
+app.use('/api/ocr', ocrRouter);
+
+// AI generation route using HuggingFace inference API (free tier)
+import aiRouter from './routes/ai.js';
+app.use('/api/ai', aiRouter);
+
 // Auth middleware using Supabase JWT
 async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization || '';
@@ -1041,59 +1049,39 @@ app.delete('/api/admin/schools/:schoolId', requireAuth, async (req, res) => {
 
 app.post('/api/ai/chat', requireAuth, async (req, res) => {
   const { messages = [], school_id = null } = req.body;
-  const lastMessage = messages[messages.length - 1]?.content?.toLowerCase() || '';
-
-  // FREE MOCK AI LOGIC
-  const getMockResponse = () => {
-    if (lastMessage.includes('attendance')) {
-      return "Based on recent records, student attendance is currently stable. I recommend sending SMS alerts to parents of students with more than 3 consecutive absences to improve engagement.";
-    }
-    if (lastMessage.includes('result') || lastMessage.includes('performance')) {
-      return "Current performance data shows strong results in Mathematics and Science. Consider organizing extra support for students performing below the 40th percentile in English Language.";
-    }
-    if (lastMessage.includes('fees') || lastMessage.includes('payment')) {
-      return "Financial records indicate that 65% of term fees have been collected. I suggest sending a polite reminder via the Announcements portal to parents with outstanding balances.";
-    }
-    if (lastMessage.includes('hi') || lastMessage.includes('hello')) {
-      return "Hello! I am GradiaFlow AI (Offline Mode). I can help you analyze school data, suggest improvements for student performance, or draft announcements. What can I do for you today?";
-    }
-    return "I am currently operating in basic mode. I can assist with data summaries for attendance, results, and fees. Please ask a specific question about these areas!";
-  };
 
   try {
-    if (openai && !lastMessage.includes('debug_force_mock')) {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        temperature: 0.35,
-        max_tokens: 600,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are GradiaFlow AI for Nigerian schools. Be concise, actionable, polite.'
-          },
-          ...messages
-        ]
-      });
-      const answer = completion.choices[0].message;
-      
-      // async log
-      supabaseService.from('messages').insert({
-        school_id,
-        sender_profile_id: req.user.id,
-        body: `[AI_CHAT_EXPRESS] ${JSON.stringify(answer).slice(0, 1800)}`
-      }).then().catch(() => {});
+    const aiRes = await fetch(
+      'https://text.pollinations.ai/',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: 'You are GradiaFlow AI for Nigerian schools. Be concise, actionable, polite.' },
+            ...messages
+          ]
+        }),
+      }
+    );
 
-      return res.json({ reply: answer });
-    } else {
-      // Fallback to Free Mock AI
-      const mockReply = { role: 'assistant', content: getMockResponse() };
-      return res.json({ reply: mockReply });
+    if (!aiRes.ok) {
+      return res.json({ reply: { role: 'assistant', content: "AI inference error: " + await aiRes.text() } });
     }
+
+    const text = await aiRes.text();
+    
+    // async log
+    supabaseService.from('messages').insert({
+      school_id,
+      sender_profile_id: req.user.id,
+      body: `[AI_CHAT_POLLINATIONS] ${text.slice(0, 1800)}`
+    }).then().catch(() => {});
+
+    return res.json({ reply: { role: 'assistant', content: text } });
   } catch (err) {
     console.error('AI Chat error:', err);
-    // If OpenAI fails, always fall back to the Free Mock AI instead of erroring
-    const mockReply = { role: 'assistant', content: getMockResponse() };
-    return res.json({ reply: mockReply });
+    return res.json({ reply: { role: 'assistant', content: 'An error occurred while communicating with the AI service.' } });
   }
 });
 
@@ -1154,6 +1142,7 @@ app.post('/api/sms/send', requireAuth, async (req, res) => {
       },
       body: JSON.stringify({ to: phone, message })
     });
+
     const ok = resp.ok;
     await supabaseService.from('sms_logs').insert({
       school_id,
