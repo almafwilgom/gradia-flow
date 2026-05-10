@@ -1363,9 +1363,29 @@ app.get('/api/report-card/:studentId', requireAuth, async (req, res) => {
 // ===== Custom Email Confirmation System =====
 // Store confirmation tokens in memory (expires after 24 hours)
 const confirmationTokens = new Map();
+const CONFIRMATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+const CONFIRMATION_RESEND_COOLDOWN_MS = 10 * 60 * 1000;
 
 function generateConfirmationToken() {
   return crypto.randomBytes(32).toString('hex');
+}
+
+function pruneExpiredConfirmationTokens() {
+  const now = Date.now();
+  for (const [token, value] of confirmationTokens.entries()) {
+    if (now > value.expiresAt) {
+      confirmationTokens.delete(token);
+    }
+  }
+}
+
+function findConfirmationTokenByEmail(email) {
+  for (const [token, value] of confirmationTokens.entries()) {
+    if (value.email === email) {
+      return { token, value };
+    }
+  }
+  return null;
 }
 
 function createEmailTemplate(schoolName, confirmationUrl, userName) {
@@ -1450,18 +1470,37 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
       return res.status(500).json({ error: 'Email service not configured' });
     }
 
-    const token = generateConfirmationToken();
-    const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-    
-    confirmationTokens.set(token, {
-      email: String(email).toLowerCase().trim(),
-      full_name: String(full_name).trim(),
-      school_name: String(school_name).trim(),
-      expiresAt
-    });
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const normalizedName = String(full_name).trim();
+    const normalizedSchoolName = String(school_name).trim();
+    const now = Date.now();
+
+    pruneExpiredConfirmationTokens();
+
+    const existingToken = findConfirmationTokenByEmail(normalizedEmail);
+    if (existingToken && now - (existingToken.value.lastSentAt || 0) < CONFIRMATION_RESEND_COOLDOWN_MS) {
+      return res.json({
+        ok: true,
+        reused: true,
+        message: 'A confirmation email was already sent recently. Please check your inbox or spam folder.',
+        token_expires_in: '24 hours'
+      });
+    }
+
+    const { data: existingUserPage, error: existingUserErr } = await supabaseService.auth.admin.listUsers();
+    if (existingUserErr) return res.status(500).json({ error: existingUserErr.message });
+    const alreadyRegistered = existingUserPage?.users?.some(
+      (user) => String(user.email || '').toLowerCase() === normalizedEmail
+    );
+    if (alreadyRegistered) {
+      return res.status(400).json({ error: 'This email is already registered. Please sign in instead.' });
+    }
+
+    const token = existingToken?.token || generateConfirmationToken();
+    const expiresAt = now + CONFIRMATION_TOKEN_TTL_MS;
 
     const confirmationUrl = `${FRONTEND_URL}/auth/confirm-email?token=${token}`;
-    const htmlContent = createEmailTemplate(school_name, confirmationUrl, full_name);
+    const htmlContent = createEmailTemplate(normalizedSchoolName, confirmationUrl, normalizedName);
 
     const transporter = nodemailer.createTransport({
       host: SMTP_HOST,
@@ -1473,14 +1512,34 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
       }
     });
 
-    await transporter.sendMail({
-      from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM_ADDRESS || SMTP_USER}>`,
-      to: email,
-      subject: `Confirm Your Email - GradiaFlow Registration`,
-      html: htmlContent
+    try {
+      await transporter.sendMail({
+        from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM_ADDRESS || SMTP_USER}>`,
+        to: normalizedEmail,
+        subject: `Confirm Your Email - GradiaFlow Registration`,
+        html: htmlContent
+      });
+    } catch (mailErr) {
+      const message = String(mailErr?.message || '').toLowerCase();
+      if (existingToken && message.includes('rate limit')) {
+        return res.json({
+          ok: true,
+          reused: true,
+          message: 'A confirmation email was already sent recently. Please use the one already in your inbox.'
+        });
+      }
+      throw mailErr;
+    }
+
+    confirmationTokens.set(token, {
+      email: normalizedEmail,
+      full_name: normalizedName,
+      school_name: normalizedSchoolName,
+      expiresAt,
+      lastSentAt: now
     });
 
-    console.log(`[EMAIL] Confirmation email sent to ${email}`);
+    console.log(`[EMAIL] Confirmation email sent to ${normalizedEmail}`);
     return res.json({ ok: true, message: 'Confirmation email sent successfully', token_expires_in: '24 hours' });
   } catch (err) {
     console.error('[EMAIL ERROR]', err);

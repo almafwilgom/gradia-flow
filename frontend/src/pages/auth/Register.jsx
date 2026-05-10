@@ -26,6 +26,7 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [showVerificationSent, setShowVerificationSent] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState('');
+  const [verificationMessage, setVerificationMessage] = useState('');
   const navigate = useNavigate();
 
   const normalizeSchoolCode = (value) => String(value || '').trim().toUpperCase();
@@ -102,8 +103,13 @@ export default function Register() {
           throw new Error(errorData.error || 'Failed to send confirmation email');
         }
 
+        const emailData = await emailRes.json();
+
         // Show verification sent message
         setVerificationEmail(email);
+        setVerificationMessage(
+          emailData.message || 'Check your inbox and open the confirmation link we sent.'
+        );
         setShowVerificationSent(true);
         setLoading(false);
         return;
@@ -173,6 +179,9 @@ export default function Register() {
               We've sent a confirmation email to:
             </p>
             <p className="font-semibold text-slate-900">{verificationEmail}</p>
+            {verificationMessage ? (
+              <p className="mt-2 text-xs text-slate-600">{verificationMessage}</p>
+            ) : null}
           </div>
 
           <div className="space-y-4 mb-6">
@@ -404,28 +413,3 @@ export default function Register() {
     </div>
   );
 }
-                  Teachers and students do not need a separate password here. Your teacher/student code will be used to create and sign in to your account.
-                </p>
-                <p className="mt-2 text-xs text-slate-500">
-                  If you want to set a custom password later, you can do so from your settings after logging in.
-                </p>
-              </div>
-            )}
-          </div>
-          {error && <div className="text-sm text-rose-600">{error}</div>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-brand-600 text-white py-2 font-semibold hover:bg-brand-700 transition"
-          >
-            {loading ? 'Creating account...' : 'Register'}
-          </button>
-        </form>
-        <p className="mt-4 text-sm text-center text-slate-600">
-          Already registered? <Link to="/login" className="text-brand-600">Login</Link>
-        </p>
-      </div>
-    </div>
-  );
-}
-
