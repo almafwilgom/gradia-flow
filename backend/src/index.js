@@ -1347,7 +1347,7 @@ app.get('/api/report-card/:studentId', requireAuth, async (req, res) => {
   }
 });
 
-app.listen(PORT, async () => {
+app.listen(PORT, '0.0.0.0', async () => {
   // eslint-disable-next-line no-console
   console.log(`Express backend running on :${PORT}`);
   
