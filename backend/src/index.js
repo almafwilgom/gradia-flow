@@ -24,7 +24,11 @@ const {
   SMTP_PORT,
   SMTP_USER,
   SMTP_PASS,
-  RECEIVER_EMAIL
+  RECEIVER_EMAIL,
+  FRONTEND_URL = 'https://gradiaflow.com',
+  APP_DOMAIN = 'gradiaflow.com',
+  EMAIL_FROM_NAME = 'GradiaFlow',
+  EMAIL_FROM_ADDRESS = 'noreply@gradiaflow.com'
 } = process.env;
 
 const invalidEnv =
@@ -51,7 +55,8 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'https://gradiaflow.com',
-  'https://www.gradiaflow.com'
+  'https://www.gradiaflow.com',
+  'https://gradia-flow.pages.dev'
 ];
 
 app.use(cors({
@@ -1351,6 +1356,224 @@ app.get('/api/report-card/:studentId', requireAuth, async (req, res) => {
     return res.send(Buffer.from(pdfBytes));
   } catch (err) {
     console.error('Report card generation error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Custom Email Confirmation System =====
+// Store confirmation tokens in memory (expires after 24 hours)
+const confirmationTokens = new Map();
+
+function generateConfirmationToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function createEmailTemplate(schoolName, confirmationUrl, userName) {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GradiaFlow - Confirm Your Email</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5; }
+        .container { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 40px 20px; text-align: center; color: white; }
+        .header h1 { font-size: 28px; margin-bottom: 8px; }
+        .header p { font-size: 14px; opacity: 0.9; }
+        .content { padding: 40px 30px; }
+        .welcome { font-size: 18px; color: #1f2937; margin-bottom: 16px; font-weight: 600; }
+        .message { color: #4b5563; font-size: 15px; line-height: 1.6; margin-bottom: 24px; }
+        .school-badge { background: #f0f4ff; border-left: 4px solid #3b82f6; padding: 12px 16px; margin: 20px 0; border-radius: 4px; }
+        .school-badge strong { color: #1e40af; }
+        .cta-button { display: inline-block; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 24px 0; }
+        .cta-button:hover { opacity: 0.95; }
+        .alternative { color: #6b7280; font-size: 13px; margin: 16px 0; }
+        .footer { background: #f9fafb; padding: 20px 30px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 12px; color: #6b7280; }
+        .footer-link { color: #3b82f6; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✉️ Confirm Your Email</h1>
+            <p>Complete your GradiaFlow registration</p>
+        </div>
+        <div class="content">
+            <p class="welcome">Hello ${userName},</p>
+            <p class="message">
+                Welcome to GradiaFlow! We're excited to have you join our platform. 
+                To complete your registration and unlock full access to your school management dashboard, 
+                please confirm your email address.
+            </p>
+            <div class="school-badge">
+                <strong>School:</strong> ${schoolName}
+            </div>
+            <p class="message">
+                Click the button below to verify your email address. This link will expire in 24 hours.
+            </p>
+            <div style="text-align: center;">
+                <a href="${confirmationUrl}" class="cta-button">Confirm Email Address</a>
+            </div>
+            <p class="alternative">
+                Or copy and paste this link in your browser:<br>
+                <span style="word-break: break-all; color: #1f2937;">${confirmationUrl}</span>
+            </p>
+            <p class="message" style="margin-top: 32px; font-size: 13px; color: #6b7280;">
+                If you didn't create this account, please ignore this email or contact our support team.
+            </p>
+        </div>
+        <div class="footer">
+            <p>© 2025 GradiaFlow. All rights reserved.</p>
+            <p>
+                <a href="https://gradiaflow.com" class="footer-link">Visit Website</a> | 
+                <a href="https://gradiaflow.com/support" class="footer-link">Support</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+  `.trim();
+}
+
+// Send custom confirmation email
+app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
+  try {
+    const { email, full_name, school_name } = req.body;
+    if (!email || !full_name || !school_name) {
+      return res.status(400).json({ error: 'email, full_name, and school_name are required' });
+    }
+
+    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+      return res.status(500).json({ error: 'Email service not configured' });
+    }
+
+    const token = generateConfirmationToken();
+    const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+    
+    confirmationTokens.set(token, {
+      email: String(email).toLowerCase().trim(),
+      full_name: String(full_name).trim(),
+      school_name: String(school_name).trim(),
+      expiresAt
+    });
+
+    const confirmationUrl = `${FRONTEND_URL}/auth/confirm-email?token=${token}`;
+    const htmlContent = createEmailTemplate(school_name, confirmationUrl, full_name);
+
+    const transporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: Number(SMTP_PORT) || 587,
+      secure: Number(SMTP_PORT) === 465,
+      auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS
+      }
+    });
+
+    await transporter.sendMail({
+      from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM_ADDRESS || SMTP_USER}>`,
+      to: email,
+      subject: `Confirm Your Email - GradiaFlow Registration`,
+      html: htmlContent
+    });
+
+    console.log(`[EMAIL] Confirmation email sent to ${email}`);
+    return res.json({ ok: true, message: 'Confirmation email sent successfully', token_expires_in: '24 hours' });
+  } catch (err) {
+    console.error('[EMAIL ERROR]', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Verify confirmation token and complete registration
+app.post('/api/public/auth/verify-confirmation', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token) {
+      return res.status(400).json({ error: 'Confirmation token is required' });
+    }
+
+    const tokenData = confirmationTokens.get(token);
+    if (!tokenData) {
+      return res.status(400).json({ error: 'Invalid or expired confirmation token' });
+    }
+
+    // Check if token has expired
+    if (Date.now() > tokenData.expiresAt) {
+      confirmationTokens.delete(token);
+      return res.status(400).json({ error: 'Confirmation token has expired' });
+    }
+
+    const { email, full_name, school_name } = tokenData;
+
+    // Check if user already exists
+    const { data: existingUser } = await supabaseService.auth.admin.listUsers();
+    const userExists = existingUser?.users?.some(u => u.email === email);
+    if (userExists) {
+      return res.status(400).json({ error: 'Email already registered' });
+    }
+
+    // Create school if it doesn't exist
+    const { data: school } = await supabaseService
+      .from('schools')
+      .select('id')
+      .eq('name', school_name)
+      .maybeSingle();
+
+    let schoolId = school?.id;
+    if (!schoolId) {
+      const { data: newSchool, error: schoolErr } = await supabaseService
+        .from('schools')
+        .insert({
+          name: school_name,
+          school_code: school_name.toUpperCase().substring(0, 10).replace(/\s/g, '_'),
+          status: 'pending_approval'
+        })
+        .select('id')
+        .single();
+
+      if (schoolErr) return res.status(400).json({ error: 'Failed to create school record' });
+      schoolId = newSchool.id;
+    }
+
+    // Create user in Supabase Auth
+    const { data: authUser, error: authErr } = await supabaseService.auth.admin.createUser({
+      email,
+      password: password || crypto.randomUUID().slice(0, 12),
+      email_confirm: true,
+      user_metadata: {
+        full_name,
+        role: 'school_admin',
+        school_id: schoolId
+      }
+    });
+
+    if (authErr) return res.status(400).json({ error: authErr.message });
+
+    // Create profile
+    await supabaseService.from('profiles').insert({
+      id: authUser.user.id,
+      email,
+      full_name,
+      role: 'school_admin',
+      school_id: schoolId
+    });
+
+    // Delete the token after use
+    confirmationTokens.delete(token);
+
+    console.log(`[AUTH] School admin account created: ${email} for school: ${school_name}`);
+    return res.json({
+      ok: true,
+      message: 'Email confirmed successfully. Your account is ready!',
+      user_id: authUser.user.id,
+      email
+    });
+  } catch (err) {
+    console.error('[VERIFICATION ERROR]', err);
     return res.status(500).json({ error: err.message });
   }
 });

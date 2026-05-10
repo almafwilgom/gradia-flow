@@ -24,6 +24,8 @@ export default function Register() {
   const [teacherCode, setTeacherCode] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showVerificationSent, setShowVerificationSent] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState('');
   const navigate = useNavigate();
 
   const normalizeSchoolCode = (value) => String(value || '').trim().toUpperCase();
@@ -83,7 +85,31 @@ export default function Register() {
     try {
       if (role === 'school_admin') {
         if (!schoolName) throw new Error('School name is required for admin signup');
+
+        // Send custom confirmation email
+        const emailRes = await fetch(`${apiBaseUrl}/api/public/auth/send-confirmation-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            full_name: fullName,
+            school_name: schoolName
+          })
+        });
+
+        if (!emailRes.ok) {
+          const errorData = await emailRes.json();
+          throw new Error(errorData.error || 'Failed to send confirmation email');
+        }
+
+        // Show verification sent message
+        setVerificationEmail(email);
+        setShowVerificationSent(true);
+        setLoading(false);
+        return;
       }
+
+      // For non-admin roles (teacher, parent, student) - use existing flow
       if (role === 'teacher' && !classId) {
         throw new Error('Select the class you will manage');
       }
@@ -97,11 +123,9 @@ export default function Register() {
         throw new Error('Select a school to join');
       }
 
-      // Ensure we always have a valid password (min 6 chars for Supabase)
       const fallbackPassword = role === 'student' ? studentCode : role === 'teacher' ? teacherCode : 'gradiaflow123';
       const resolvedPassword = password?.length >= 6 ? password : (fallbackPassword?.length >= 6 ? fallbackPassword : 'gradiaflow123');
       
-      console.log('Registering with role:', role, 'and resolved password:', resolvedPassword);
       const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
         email,
         password: resolvedPassword,
@@ -109,8 +133,7 @@ export default function Register() {
             data: {
               full_name: fullName,
               role,
-              school_id: role === 'school_admin' ? null : schoolId,
-              school_name: role === 'school_admin' ? schoolName : null,
+              school_id: schoolId,
               class_id: role === 'teacher' ? classId : null,
               student_code: role === 'student' ? studentCode : null,
               teacher_code: role === 'teacher' ? teacherCode : null
@@ -127,10 +150,69 @@ export default function Register() {
       }
     } catch (err) {
       setError(err.message);
-    } finally {
       setLoading(false);
     }
   };
+
+  if (showVerificationSent) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+        <div className="bg-white shadow-card rounded-2xl w-full max-w-lg p-8 border border-slate-100">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="text-2xl font-semibold text-slate-900">Check Your Email</div>
+            <p className="text-sm text-slate-500 mt-2">Verification email sent</p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-slate-700 mb-2">
+              We've sent a confirmation email to:
+            </p>
+            <p className="font-semibold text-slate-900">{verificationEmail}</p>
+          </div>
+
+          <div className="space-y-4 mb-6">
+            <p className="text-sm text-slate-600">
+              Click the link in the email to verify your address. The link expires in 24 hours.
+            </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-xs text-amber-800">
+                <strong>Tip:</strong> Check your spam or promotions folder if you don't see it in your inbox.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => window.location.href = 'https://gradiaflow.com/login'}
+            className="w-full rounded-lg bg-brand-600 text-white py-2 font-semibold hover:bg-brand-700 transition mb-3"
+          >
+            Go to Login
+          </button>
+
+          <button
+            onClick={() => setShowVerificationSent(false)}
+            className="w-full rounded-lg border border-slate-200 text-slate-600 py-2 font-semibold hover:bg-slate-50 transition"
+          >
+            Back to Register
+          </button>
+
+          <p className="text-xs text-center text-slate-500 mt-4">
+            Didn't receive the email?{' '}
+            <button 
+              onClick={() => setShowVerificationSent(false)}
+              className="text-brand-600 hover:underline"
+            >
+              Try again
+            </button>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
@@ -298,6 +380,30 @@ export default function Register() {
               <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm font-semibold text-slate-900">Login method</p>
                 <p className="mt-2 text-sm text-slate-500">
+                  Teachers and students do not need a separate password here. Your teacher/student code will be used to create and sign in to your account.
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  If you want to set a custom password later, you can do so from your settings after logging in.
+                </p>
+              </div>
+            )}
+          </div>
+          {error && <div className="text-sm text-rose-600">{error}</div>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-lg bg-brand-600 text-white py-2 font-semibold hover:bg-brand-700 transition"
+          >
+            {loading ? 'Creating account...' : 'Register'}
+          </button>
+        </form>
+        <p className="mt-4 text-sm text-center text-slate-600">
+          Already registered? <Link to="/login" className="text-brand-600">Login</Link>
+        </p>
+      </div>
+    </div>
+  );
+}
                   Teachers and students do not need a separate password here. Your teacher/student code will be used to create and sign in to your account.
                 </p>
                 <p className="mt-2 text-xs text-slate-500">
