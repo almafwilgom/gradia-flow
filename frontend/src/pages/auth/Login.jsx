@@ -156,6 +156,13 @@ export default function Login() {
                   required
                 />
               </div>
+              {role === 'school_admin' && (
+                <div className="text-right">
+                  <Link to="/reset-password" className="text-sm font-medium text-brand-600 hover:text-brand-700">
+                    Reset password
+                  </Link>
+                </div>
+              )}
             </>
           ) : (
             <>

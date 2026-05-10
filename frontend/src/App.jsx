@@ -9,6 +9,7 @@ import RoleBasedRedirect from './components/RoleBasedRedirect';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import ConfirmEmail from './pages/auth/ConfirmEmail';
+import ResetPassword from './pages/auth/ResetPassword';
 import SetupGradiaFlowAdmin from './pages/auth/SetupGradiaFlowAdmin';
 import Dashboard from './pages/Dashboard';
 import PendingApproval from './pages/PendingApproval';
@@ -78,6 +79,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/auth/confirm-email" element={<ConfirmEmail />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/setup/gradiaflow-admin" element={<SetupGradiaFlowAdmin />} />
 
       {/* Role-based redirect after login */}
