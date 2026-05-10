@@ -1363,6 +1363,8 @@ app.get('/api/report-card/:studentId', requireAuth, async (req, res) => {
 // ===== Custom Email Confirmation System =====
 const CONFIRMATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const CONFIRMATION_RESEND_COOLDOWN_MS = 10 * 60 * 1000;
+const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+const PASSWORD_RESET_RESEND_COOLDOWN_MS = 10 * 60 * 1000;
 
 function generateConfirmationToken() {
   return crypto.randomBytes(32).toString('hex');
@@ -1410,65 +1412,90 @@ function createEmailTemplate(schoolName, confirmationUrl, userName) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GradiaFlow - Confirm Your Email</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5; }
-        .container { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
-        .header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 40px 20px; text-align: center; color: white; }
-        .header h1 { font-size: 28px; margin-bottom: 8px; }
-        .header p { font-size: 14px; opacity: 0.9; }
-        .content { padding: 40px 30px; }
-        .welcome { font-size: 18px; color: #1f2937; margin-bottom: 16px; font-weight: 600; }
-        .message { color: #4b5563; font-size: 15px; line-height: 1.6; margin-bottom: 24px; }
-        .school-badge { background: #f0f4ff; border-left: 4px solid #3b82f6; padding: 12px 16px; margin: 20px 0; border-radius: 4px; }
-        .school-badge strong { color: #1e40af; }
-        .cta-button { display: inline-block; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 24px 0; }
-        .cta-button:hover { opacity: 0.95; }
-        .alternative { color: #6b7280; font-size: 13px; margin: 16px 0; }
-        .footer { background: #f9fafb; padding: 20px 30px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 12px; color: #6b7280; }
-        .footer-link { color: #3b82f6; text-decoration: none; }
+        body { margin: 0; padding: 0; background: #edf3ff; font-family: Arial, sans-serif; color: #10213a; }
+        .wrapper { width: 100%; padding: 32px 16px; }
+        .container { max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 45px rgba(15, 38, 95, 0.12); }
+        .header { padding: 36px 36px 24px; background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 65%, #60a5fa 100%); color: #ffffff; }
+        .brand { font-size: 28px; font-weight: 700; margin: 0 0 10px; letter-spacing: -0.02em; }
+        .eyebrow { display: inline-block; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.18); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+        .headline { margin: 18px 0 8px; font-size: 28px; line-height: 1.2; }
+        .subcopy { margin: 0; color: rgba(255, 255, 255, 0.88); font-size: 15px; line-height: 1.6; }
+        .content { padding: 32px 36px 20px; }
+        .greeting { margin: 0 0 16px; font-size: 20px; font-weight: 700; color: #0f172a; }
+        .copy { margin: 0 0 18px; font-size: 15px; line-height: 1.75; color: #334155; }
+        .schoolCard { margin: 22px 0; padding: 18px 20px; border-radius: 18px; background: #f8fbff; border: 1px solid #dbeafe; }
+        .schoolLabel { margin: 0 0 6px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #2563eb; }
+        .schoolName { margin: 0; font-size: 20px; font-weight: 700; color: #0f172a; }
+        .ctaWrap { text-align: center; padding: 12px 0 8px; }
+        .cta { display: inline-block; padding: 15px 28px; border-radius: 14px; background: linear-gradient(135deg, #2563eb 0%, #16a34a 100%); color: #ffffff !important; text-decoration: none; font-weight: 700; font-size: 15px; }
+        .hint { margin: 22px 0 0; padding: 16px 18px; border-radius: 16px; background: #f8fafc; border: 1px solid #e2e8f0; font-size: 13px; line-height: 1.7; color: #475569; word-break: break-word; }
+        .footer { padding: 22px 36px 34px; color: #64748b; font-size: 12px; line-height: 1.7; }
+        .footer a { color: #2563eb; text-decoration: none; }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="wrapper">
+      <div class="container">
         <div class="header">
-            <h1>✉️ Confirm Your Email</h1>
-            <p>Complete your GradiaFlow registration</p>
+            <div class="eyebrow">School Admin Setup</div>
+            <h1 class="brand">GradiaFlow</h1>
+            <h2 class="headline">Confirm your email to finish setup</h2>
+            <p class="subcopy">Your school workspace is almost ready. We just need to verify this email address before we activate your admin account.</p>
         </div>
         <div class="content">
-            <p class="welcome">Hello ${userName},</p>
-            <p class="message">
-                Welcome to GradiaFlow! We're excited to have you join our platform. 
-                To complete your registration and unlock full access to your school management dashboard, 
-                please confirm your email address.
+            <p class="greeting">Hello ${userName},</p>
+            <p class="copy">
+                Thanks for creating a GradiaFlow school admin account. Once you confirm this email,
+                we will complete the registration for your school and prepare your live workspace.
             </p>
-            <div class="school-badge">
-                <strong>School:</strong> ${schoolName}
+            <div class="schoolCard">
+                <p class="schoolLabel">School registration</p>
+                <p class="schoolName">${schoolName}</p>
             </div>
-            <p class="message">
-                Click the button below to verify your email address. This link will expire in 24 hours.
+            <p class="copy">
+                Click the button below to confirm your email address. This secure link expires in 24 hours.
             </p>
-            <div style="text-align: center;">
-                <a href="${confirmationUrl}" class="cta-button">Confirm Email Address</a>
+            <div class="ctaWrap">
+                <a href="${confirmationUrl}" class="cta">Confirm Email Address</a>
             </div>
-            <p class="alternative">
-                Or copy and paste this link in your browser:<br>
-                <span style="word-break: break-all; color: #1f2937;">${confirmationUrl}</span>
-            </p>
-            <p class="message" style="margin-top: 32px; font-size: 13px; color: #6b7280;">
-                If you didn't create this account, please ignore this email or contact our support team.
+            <div class="hint">
+                If the button does not open, copy and paste this link into your browser:<br><br>
+                ${confirmationUrl}
+            </div>
+            <p class="copy" style="margin-top: 22px; font-size: 13px; color: #64748b;">
+                If you did not request this account, you can safely ignore this email.
             </p>
         </div>
         <div class="footer">
-            <p>© 2025 GradiaFlow. All rights reserved.</p>
-            <p>
-                <a href="https://gradiaflow.com" class="footer-link">Visit Website</a> | 
-                <a href="https://gradiaflow.com/support" class="footer-link">Support</a>
-            </p>
+            GradiaFlow<br>
+            Smart school management powered by AI.<br>
+            <a href="https://gradiaflow.com">Visit website</a> | <a href="https://gradiaflow.com/support">Support</a><br>
+            &copy; 2026 GradiaFlow. All rights reserved.
         </div>
+      </div>
     </div>
 </body>
 </html>
   `.trim();
+}
+
+function createPlainTextConfirmation(schoolName, confirmationUrl, userName) {
+  return [
+    `Hello ${userName},`,
+    '',
+    'Thanks for creating a GradiaFlow school admin account.',
+    `School: ${schoolName}`,
+    '',
+    'Confirm your email address to finish setting up your school workspace:',
+    confirmationUrl,
+    '',
+    'This link expires in 24 hours.',
+    '',
+    'If you did not request this account, you can ignore this email.',
+    '',
+    'GradiaFlow',
+    'https://gradiaflow.com'
+  ].join('\n');
 }
 
 // Send custom confirmation email
@@ -1519,6 +1546,7 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
 
     const confirmationUrl = `${FRONTEND_URL}/auth/confirm-email?token=${token}`;
     const htmlContent = createEmailTemplate(normalizedSchoolName, confirmationUrl, normalizedName);
+    const textContent = createPlainTextConfirmation(normalizedSchoolName, confirmationUrl, normalizedName);
 
     const transporter = nodemailer.createTransport({
       host: SMTP_HOST,
@@ -1533,8 +1561,10 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
     try {
       await transporter.sendMail({
         from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM_ADDRESS || SMTP_USER}>`,
+        replyTo: EMAIL_FROM_ADDRESS || SMTP_USER,
         to: normalizedEmail,
-        subject: `Confirm Your Email - GradiaFlow Registration`,
+        subject: `Confirm Your Email - GradiaFlow`,
+        text: textContent,
         html: htmlContent
       });
     } catch (mailErr) {
@@ -1673,6 +1703,328 @@ app.post('/api/public/auth/verify-confirmation', async (req, res) => {
     });
   } catch (err) {
     console.error('[VERIFICATION ERROR]', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Password Reset System =====
+
+function generatePasswordResetToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function createPasswordResetTemplate(resetUrl, userEmail) {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GradiaFlow - Reset Your Password</title>
+    <style>
+        body { margin: 0; padding: 0; background: #edf3ff; font-family: Arial, sans-serif; color: #10213a; }
+        .wrapper { width: 100%; padding: 32px 16px; }
+        .container { max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 45px rgba(15, 38, 95, 0.12); }
+        .header { padding: 36px 36px 24px; background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 65%, #60a5fa 100%); color: #ffffff; }
+        .brand { font-size: 28px; font-weight: 700; margin: 0 0 10px; letter-spacing: -0.02em; }
+        .eyebrow { display: inline-block; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.18); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+        .headline { margin: 18px 0 8px; font-size: 28px; line-height: 1.2; }
+        .subcopy { margin: 0; color: rgba(255, 255, 255, 0.88); font-size: 15px; line-height: 1.6; }
+        .content { padding: 32px 36px 20px; }
+        .greeting { margin: 0 0 16px; font-size: 20px; font-weight: 700; color: #0f172a; }
+        .copy { margin: 0 0 18px; font-size: 15px; line-height: 1.75; color: #334155; }
+        .warning { margin: 18px 0; padding: 16px 18px; border-radius: 14px; background: #fef3c7; border-left: 4px solid #f59e0b; font-size: 14px; line-height: 1.6; color: #92400e; }
+        .ctaWrap { text-align: center; padding: 12px 0 8px; }
+        .cta { display: inline-block; padding: 15px 28px; border-radius: 14px; background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: #ffffff !important; text-decoration: none; font-weight: 700; font-size: 15px; }
+        .hint { margin: 22px 0 0; padding: 16px 18px; border-radius: 16px; background: #f8fafc; border: 1px solid #e2e8f0; font-size: 13px; line-height: 1.7; color: #475569; word-break: break-word; }
+        .footer { padding: 22px 36px 34px; color: #64748b; font-size: 12px; line-height: 1.7; }
+        .footer a { color: #2563eb; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+      <div class="container">
+        <div class="header">
+            <div class="eyebrow">Account Security</div>
+            <h1 class="brand">GradiaFlow</h1>
+            <h2 class="headline">Reset your password</h2>
+            <p class="subcopy">We received a request to reset your GradiaFlow account password. If you did not make this request, you can safely ignore this email.</p>
+        </div>
+        <div class="content">
+            <p class="greeting">Hello,</p>
+            <p class="copy">
+                A password reset request was made for this account. Click the button below to create a new password.
+                This secure link expires in 1 hour.
+            </p>
+            <div class="warning">
+                ⚠️ For your security, never share this link with anyone. GradiaFlow staff will never ask for your password.
+            </div>
+            <div class="ctaWrap">
+                <a href="${resetUrl}" class="cta">Reset Password</a>
+            </div>
+            <div class="hint">
+                If the button does not work, copy and paste this link into your browser:<br><br>
+                ${resetUrl}
+            </div>
+            <p class="copy" style="margin-top: 22px; font-size: 13px; color: #64748b;">
+                If you did not request a password reset, please contact GradiaFlow support immediately.
+            </p>
+        </div>
+        <div class="footer">
+            GradiaFlow<br>
+            Smart school management powered by AI.<br>
+            <a href="https://gradiaflow.com">Visit website</a> | <a href="https://gradiaflow.com/support">Support</a><br>
+            &copy; 2026 GradiaFlow. All rights reserved.
+        </div>
+      </div>
+    </div>
+</body>
+</html>
+  `.trim();
+}
+
+function createPlainTextPasswordReset(resetUrl, userEmail) {
+  return [
+    'Hello,',
+    '',
+    'We received a request to reset your GradiaFlow account password.',
+    'Click the link below to create a new password. This link expires in 1 hour.',
+    '',
+    resetUrl,
+    '',
+    '⚠️ SECURITY WARNING:',
+    '- Never share this link with anyone',
+    '- GradiaFlow staff will never ask for your password',
+    '- If you did not request this, ignore this email',
+    '',
+    'Questions? Contact GradiaFlow support at https://gradiaflow.com/support',
+    '',
+    'GradiaFlow',
+    'https://gradiaflow.com'
+  ].join('\n');
+}
+
+// Request password reset
+app.post('/api/public/auth/request-password-reset', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+      return res.status(500).json({ error: 'Email service not configured' });
+    }
+
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const now = Date.now();
+
+    // Find user by email
+    const { data: user, error: userErr } = await supabaseService
+      .from('profiles')
+      .select('id, email, full_name')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    // For security, don't reveal if email exists
+    if (!user || userErr) {
+      return res.json({
+        ok: true,
+        message: 'If an account exists with that email, a reset link has been sent.'
+      });
+    }
+
+    // Check if user is a school admin or super admin (allow password reset for these roles)
+    if (!['school_admin', 'super_admin'].includes(user.role)) {
+      return res.json({
+        ok: true,
+        message: 'If an account exists with that email, a reset link has been sent.'
+      });
+    }
+
+    // Clean up expired reset tokens
+    await supabaseService
+      .from('password_reset_tokens')
+      .delete()
+      .lt('expires_at', new Date().toISOString());
+
+    // Check if recent reset token exists (rate limiting)
+    const { data: recentToken } = await supabaseService
+      .from('password_reset_tokens')
+      .select('created_at')
+      .eq('user_id', user.id)
+      .is('used_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (recentToken && now - new Date(recentToken.created_at).getTime() < PASSWORD_RESET_RESEND_COOLDOWN_MS) {
+      return res.json({
+        ok: true,
+        message: 'A reset link was already sent recently. Please check your inbox or spam folder.'
+      });
+    }
+
+    // Generate reset token
+    const token = generatePasswordResetToken();
+    const expiresAt = new Date(now + PASSWORD_RESET_TOKEN_TTL_MS).toISOString();
+
+    // Store reset token in database
+    const { error: tokenErr } = await supabaseService
+      .from('password_reset_tokens')
+      .insert({
+        user_id: user.id,
+        token,
+        expires_at: expiresAt,
+        created_at: new Date(now).toISOString()
+      });
+
+    if (tokenErr) throw tokenErr;
+
+    // Send email
+    const resetUrl = `${FRONTEND_URL}/auth/reset-password?token=${token}`;
+    const htmlContent = createPasswordResetTemplate(resetUrl, normalizedEmail);
+    const textContent = createPlainTextPasswordReset(resetUrl, normalizedEmail);
+
+    const transporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: Number(SMTP_PORT) || 587,
+      secure: Number(SMTP_PORT) === 465,
+      auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS
+      }
+    });
+
+    try {
+      await transporter.sendMail({
+        from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM_ADDRESS || SMTP_USER}>`,
+        replyTo: EMAIL_FROM_ADDRESS || SMTP_USER,
+        to: normalizedEmail,
+        subject: 'Reset Your GradiaFlow Password',
+        text: textContent,
+        html: htmlContent
+      });
+    } catch (mailErr) {
+      console.error('[PASSWORD RESET EMAIL ERROR]', mailErr);
+      // Still return success for security, even if email fails
+    }
+
+    console.log(`[PASSWORD RESET] Reset email sent to ${normalizedEmail}`);
+    return res.json({
+      ok: true,
+      message: 'If an account exists with that email, a reset link has been sent.'
+    });
+  } catch (err) {
+    console.error('[PASSWORD RESET ERROR]', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Verify password reset token
+app.post('/api/public/auth/verify-reset-token', async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ error: 'Reset token is required' });
+    }
+
+    const { data: resetToken, error: tokenErr } = await supabaseService
+      .from('password_reset_tokens')
+      .select('id, user_id, expires_at, used_at')
+      .eq('token', token)
+      .maybeSingle();
+
+    if (tokenErr || !resetToken) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    // Check if token has expired
+    if (Date.now() > new Date(resetToken.expires_at).getTime()) {
+      return res.status(400).json({ error: 'Reset token has expired' });
+    }
+
+    // Check if token has already been used
+    if (resetToken.used_at) {
+      return res.status(400).json({ error: 'This reset link has already been used' });
+    }
+
+    // Get user email for confirmation
+    const { data: user } = await supabaseService
+      .from('profiles')
+      .select('email')
+      .eq('id', resetToken.user_id)
+      .maybeSingle();
+
+    return res.json({
+      ok: true,
+      valid: true,
+      user_email: user?.email || 'account@gradiaflow.com'
+    });
+  } catch (err) {
+    console.error('[RESET TOKEN VERIFY ERROR]', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Complete password reset
+app.post('/api/public/auth/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) {
+      return res.status(400).json({ error: 'Token and password are required' });
+    }
+
+    if (String(password).length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    const { data: resetToken, error: tokenErr } = await supabaseService
+      .from('password_reset_tokens')
+      .select('id, user_id, expires_at, used_at')
+      .eq('token', token)
+      .maybeSingle();
+
+    if (tokenErr || !resetToken) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    // Check if token has expired
+    if (Date.now() > new Date(resetToken.expires_at).getTime()) {
+      return res.status(400).json({ error: 'Reset token has expired' });
+    }
+
+    // Check if token has already been used
+    if (resetToken.used_at) {
+      return res.status(400).json({ error: 'This reset link has already been used' });
+    }
+
+    // Update user password
+    const { error: updateErr } = await supabaseService.auth.admin.updateUserById(resetToken.user_id, {
+      password
+    });
+
+    if (updateErr) {
+      return res.status(400).json({ error: updateErr.message });
+    }
+
+    // Mark token as used
+    const { error: markErr } = await supabaseService
+      .from('password_reset_tokens')
+      .update({ used_at: new Date().toISOString() })
+      .eq('id', resetToken.id);
+
+    if (markErr) {
+      console.error('[MARK TOKEN ERROR]', markErr);
+    }
+
+    console.log(`[PASSWORD RESET] Password reset completed for user ${resetToken.user_id}`);
+    return res.json({
+      ok: true,
+      message: 'Password has been reset successfully. You can now login with your new password.'
+    });
+  } catch (err) {
+    console.error('[RESET PASSWORD ERROR]', err);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -2007,3 +2359,4 @@ function fallbackSummary(student, results) {
 function roundTwo(value) {
   return Math.round(value * 100) / 100;
 }
+

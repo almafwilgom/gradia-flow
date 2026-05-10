@@ -23,7 +23,7 @@ export default function Login() {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const verifyNotice = params.get('verify') === '1';
-  const apiBaseUrl = API_URL || 'http://localhost:4000';
+  const apiBaseUrl = API_URL;
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -158,8 +158,8 @@ export default function Login() {
               </div>
               {role === 'school_admin' && (
                 <div className="text-right">
-                  <Link to="/reset-password" className="text-sm font-medium text-brand-600 hover:text-brand-700">
-                    Reset password
+                  <Link to="/auth/forgot-password" className="text-sm font-medium text-brand-600 hover:text-brand-700">
+                    Forgot password?
                   </Link>
                 </div>
               )}

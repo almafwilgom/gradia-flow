@@ -30,7 +30,7 @@ export default function Register() {
   const navigate = useNavigate();
 
   const normalizeSchoolCode = (value) => String(value || '').trim().toUpperCase();
-  const apiBaseUrl = API_URL || 'http://localhost:4000';
+  const apiBaseUrl = API_URL;
 
   useEffect(() => {
     supabase

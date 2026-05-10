@@ -12,7 +12,7 @@ export default function ConfirmEmail() {
   const [confirming, setConfirming] = useState(false);
 
   const token = searchParams.get('token');
-  const apiBaseUrl = API_URL || 'http://localhost:4000';
+  const apiBaseUrl = API_URL;
 
   useEffect(() => {
     if (!token) {

@@ -4,6 +4,12 @@ import { supabase } from './supabaseClient';
 
 export const API_URL = (() => {
   const envUrl = import.meta.env.VITE_API_URL;
+  if (!envUrl) {
+    if (typeof window !== 'undefined') {
+      return `${window.location.protocol}//${window.location.hostname}:4000`;
+    }
+    return '';
+  }
   if (envUrl === 'http://localhost:4000' && window.location.hostname !== 'localhost') {
     return `http://${window.location.hostname}:4000`;
   }
