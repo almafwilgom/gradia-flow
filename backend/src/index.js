@@ -56,9 +56,17 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin) || origin.startsWith('http://192.168.') || origin.startsWith('http://10.') || origin.startsWith('http://localhost:')) {
+    if (
+      !origin || 
+      allowedOrigins.includes(origin) || 
+      origin.endsWith('.pages.dev') ||
+      origin.startsWith('http://192.168.') || 
+      origin.startsWith('http://10.') || 
+      origin.startsWith('http://localhost:')
+    ) {
       callback(null, true);
     } else {
+      console.error(`[CORS BLOCK] Origin rejected: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   }
