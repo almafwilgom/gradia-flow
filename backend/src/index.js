@@ -1478,11 +1478,15 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
     pruneExpiredConfirmationTokens();
 
     const existingToken = findConfirmationTokenByEmail(normalizedEmail);
-    if (existingToken && now - (existingToken.value.lastSentAt || 0) < CONFIRMATION_RESEND_COOLDOWN_MS) {
+    if (existingToken && existingToken.value.expiresAt > now) {
+      const sentRecently =
+        now - (existingToken.value.lastSentAt || 0) < CONFIRMATION_RESEND_COOLDOWN_MS;
       return res.json({
         ok: true,
         reused: true,
-        message: 'A confirmation email was already sent recently. Please check your inbox or spam folder.',
+        message: sentRecently
+          ? 'A confirmation email was already sent recently. Please check your inbox or spam folder.'
+          : 'A confirmation link is already active for this email. Please use the confirmation email already in your inbox.',
         token_expires_in: '24 hours'
       });
     }
@@ -1521,7 +1525,7 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
       });
     } catch (mailErr) {
       const message = String(mailErr?.message || '').toLowerCase();
-      if (existingToken && message.includes('rate limit')) {
+      if (existingToken && (message.includes('rate limit') || message.includes('too many'))) {
         return res.json({
           ok: true,
           reused: true,
