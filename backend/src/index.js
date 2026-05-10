@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import dayjs from 'dayjs';
+import nodemailer from 'nodemailer';
 
 const {
   PORT = 4000,
@@ -18,7 +19,12 @@ const {
   PAYSTACK_SECRET,
   PAYSTACK_PUBLIC_KEY,
   SMS_API_URL,
-  SMS_API_KEY
+  SMS_API_KEY,
+  SMTP_HOST,
+  SMTP_PORT,
+  SMTP_USER,
+  SMTP_PASS,
+  RECEIVER_EMAIL
 } = process.env;
 
 const invalidEnv =
@@ -40,7 +46,24 @@ const supabaseAnon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY || SUPABASE_SE
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 const app = express();
-app.use(cors());
+
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'https://gradiaflow.com',
+  'https://www.gradiaflow.com'
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
+}));
+
 app.use(express.json({ limit: '2mb' }));
 app.use(morgan('tiny'));
 app.use((req, res, next) => {
@@ -146,12 +169,39 @@ app.post('/api/public/contact', async (req, res) => {
 
     console.log(`[CONTACT FORM] Message from ${name} (${email}): ${subject} - ${message}`);
 
-    // Since we don't have a real email service configured (like SendGrid/Postmark),
-    // we will log it and return success as if it were sent to gomenoch@gmail.com
-    // In a real app, we would use a library like nodemailer here.
+    if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
+      const transporter = nodemailer.createTransport({
+        host: SMTP_HOST,
+        port: Number(SMTP_PORT) || 587,
+        secure: Number(SMTP_PORT) === 465, 
+        auth: {
+          user: SMTP_USER,
+          pass: SMTP_PASS
+        }
+      });
+
+      await transporter.sendMail({
+        from: `"GradiaFlow Website" <${SMTP_USER}>`,
+        to: RECEIVER_EMAIL || 'gomenoch@gmail.com',
+        replyTo: email,
+        subject: `New Contact Form Submission: ${subject}`,
+        html: `
+          <h3>New Message from GradiaFlow Website</h3>
+          <p><strong>Name:</strong> ${name}</p>
+          <p><strong>Email:</strong> ${email}</p>
+          <p><strong>Subject:</strong> ${subject}</p>
+          <hr/>
+          <p>${message.replace(/\n/g, '<br/>')}</p>
+        `
+      });
+      console.log('[CONTACT FORM] Email sent successfully.');
+    } else {
+      console.warn('[CONTACT FORM] SMTP credentials missing. Email was not sent.');
+    }
 
     return res.json({ ok: true, message: 'Message sent successfully. We will get back to you soon.' });
   } catch (err) {
+    console.error('[CONTACT FORM ERROR]', err);
     return res.status(500).json({ error: err.message });
   }
 });
