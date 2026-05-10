@@ -1361,8 +1361,6 @@ app.get('/api/report-card/:studentId', requireAuth, async (req, res) => {
 });
 
 // ===== Custom Email Confirmation System =====
-// Store confirmation tokens in memory (expires after 24 hours)
-const confirmationTokens = new Map();
 const CONFIRMATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const CONFIRMATION_RESEND_COOLDOWN_MS = 10 * 60 * 1000;
 
@@ -1370,22 +1368,37 @@ function generateConfirmationToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-function pruneExpiredConfirmationTokens() {
-  const now = Date.now();
-  for (const [token, value] of confirmationTokens.entries()) {
-    if (now > value.expiresAt) {
-      confirmationTokens.delete(token);
-    }
-  }
+async function pruneExpiredConfirmationTokens() {
+  await supabaseService
+    .from('email_confirmation_tokens')
+    .delete()
+    .lt('expires_at', new Date().toISOString());
 }
 
-function findConfirmationTokenByEmail(email) {
-  for (const [token, value] of confirmationTokens.entries()) {
-    if (value.email === email) {
-      return { token, value };
-    }
-  }
-  return null;
+async function findConfirmationTokenByEmail(email) {
+  const { data, error } = await supabaseService
+    .from('email_confirmation_tokens')
+    .select('id, token, email, full_name, school_name, expires_at, last_sent_at, consumed_at, created_at')
+    .eq('email', email)
+    .is('consumed_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+async function findConfirmationTokenByToken(token) {
+  const { data, error } = await supabaseService
+    .from('email_confirmation_tokens')
+    .select('id, token, email, full_name, school_name, expires_at, last_sent_at, consumed_at, created_at')
+    .eq('token', token)
+    .is('consumed_at', null)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
 }
 
 function createEmailTemplate(schoolName, confirmationUrl, userName) {
@@ -1475,12 +1488,13 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
     const normalizedSchoolName = String(school_name).trim();
     const now = Date.now();
 
-    pruneExpiredConfirmationTokens();
+    await pruneExpiredConfirmationTokens();
 
-    const existingToken = findConfirmationTokenByEmail(normalizedEmail);
-    if (existingToken && existingToken.value.expiresAt > now) {
+    const existingToken = await findConfirmationTokenByEmail(normalizedEmail);
+    if (existingToken && new Date(existingToken.expires_at).getTime() > now) {
       const sentRecently =
-        now - (existingToken.value.lastSentAt || 0) < CONFIRMATION_RESEND_COOLDOWN_MS;
+        now - new Date(existingToken.last_sent_at || existingToken.created_at || now).getTime() <
+        CONFIRMATION_RESEND_COOLDOWN_MS;
       return res.json({
         ok: true,
         reused: true,
@@ -1501,7 +1515,7 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
     }
 
     const token = existingToken?.token || generateConfirmationToken();
-    const expiresAt = now + CONFIRMATION_TOKEN_TTL_MS;
+    const expiresAt = new Date(now + CONFIRMATION_TOKEN_TTL_MS).toISOString();
 
     const confirmationUrl = `${FRONTEND_URL}/auth/confirm-email?token=${token}`;
     const htmlContent = createEmailTemplate(normalizedSchoolName, confirmationUrl, normalizedName);
@@ -1535,13 +1549,28 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
       throw mailErr;
     }
 
-    confirmationTokens.set(token, {
+    const tokenPayload = {
+      token,
       email: normalizedEmail,
       full_name: normalizedName,
       school_name: normalizedSchoolName,
-      expiresAt,
-      lastSentAt: now
-    });
+      expires_at: expiresAt,
+      last_sent_at: new Date(now).toISOString(),
+      consumed_at: null
+    };
+
+    if (existingToken?.id) {
+      const { error: updateErr } = await supabaseService
+        .from('email_confirmation_tokens')
+        .update(tokenPayload)
+        .eq('id', existingToken.id);
+      if (updateErr) throw updateErr;
+    } else {
+      const { error: insertErr } = await supabaseService
+        .from('email_confirmation_tokens')
+        .insert(tokenPayload);
+      if (insertErr) throw insertErr;
+    }
 
     console.log(`[EMAIL] Confirmation email sent to ${normalizedEmail}`);
     return res.json({ ok: true, message: 'Confirmation email sent successfully', token_expires_in: '24 hours' });
@@ -1559,14 +1588,14 @@ app.post('/api/public/auth/verify-confirmation', async (req, res) => {
       return res.status(400).json({ error: 'Confirmation token is required' });
     }
 
-    const tokenData = confirmationTokens.get(token);
+    const tokenData = await findConfirmationTokenByToken(token);
     if (!tokenData) {
       return res.status(400).json({ error: 'Invalid or expired confirmation token' });
     }
 
     // Check if token has expired
-    if (Date.now() > tokenData.expiresAt) {
-      confirmationTokens.delete(token);
+    if (Date.now() > new Date(tokenData.expires_at).getTime()) {
+      await supabaseService.from('email_confirmation_tokens').delete().eq('id', tokenData.id);
       return res.status(400).json({ error: 'Confirmation token has expired' });
     }
 
@@ -1588,12 +1617,17 @@ app.post('/api/public/auth/verify-confirmation', async (req, res) => {
 
     let schoolId = school?.id;
     if (!schoolId) {
+      const demoExpiresAt = new Date(Date.now() + CONFIRMATION_TOKEN_TTL_MS);
       const { data: newSchool, error: schoolErr } = await supabaseService
         .from('schools')
         .insert({
           name: school_name,
-          school_code: school_name.toUpperCase().substring(0, 10).replace(/\s/g, '_'),
-          status: 'pending_approval'
+          approval_status: 'pending',
+          subscription_plan: 'demo',
+          subscription_status: 'demo',
+          subscription_expires_at: demoExpiresAt.toISOString().slice(0, 10),
+          demo_started_at: new Date().toISOString(),
+          demo_expires_at: demoExpiresAt.toISOString()
         })
         .select('id')
         .single();
@@ -1625,8 +1659,10 @@ app.post('/api/public/auth/verify-confirmation', async (req, res) => {
       school_id: schoolId
     });
 
-    // Delete the token after use
-    confirmationTokens.delete(token);
+    await supabaseService
+      .from('email_confirmation_tokens')
+      .update({ consumed_at: new Date().toISOString() })
+      .eq('id', tokenData.id);
 
     console.log(`[AUTH] School admin account created: ${email} for school: ${school_name}`);
     return res.json({
