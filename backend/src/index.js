@@ -1362,9 +1362,9 @@ app.get('/api/report-card/:studentId', requireAuth, async (req, res) => {
 
 // ===== Custom Email Confirmation System =====
 const CONFIRMATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
-const CONFIRMATION_RESEND_COOLDOWN_MS = 10 * 60 * 1000;
+const CONFIRMATION_RESEND_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes instead of 10
 const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
-const PASSWORD_RESET_RESEND_COOLDOWN_MS = 10 * 60 * 1000;
+const PASSWORD_RESET_RESEND_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes instead of 10
 
 function generateConfirmationToken() {
   return crypto.randomBytes(32).toString('hex');
@@ -1569,13 +1569,31 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
       });
     } catch (mailErr) {
       const message = String(mailErr?.message || '').toLowerCase();
-      if (existingToken && (message.includes('rate limit') || message.includes('too many'))) {
-        return res.json({
-          ok: true,
-          reused: true,
-          message: 'A confirmation email was already sent recently. Please use the one already in your inbox.'
+      console.error('[EMAIL SEND ERROR]', mailErr.message);
+      
+      // Handle Gmail rate limiting
+      if (message.includes('rate limit') || message.includes('too many') || message.includes('429')) {
+        // If token already exists, suggest using the existing one
+        if (existingToken) {
+          return res.json({
+            ok: true,
+            reused: true,
+            message: 'Email service is temporarily rate limited. Please use the confirmation email already in your inbox (may take a few minutes to arrive).'
+          });
+        }
+        return res.status(429).json({ 
+          error: 'Too many emails sent. Please try again in a few minutes.' 
         });
       }
+      
+      // Handle authentication errors
+      if (message.includes('invalid login') || message.includes('authentication')) {
+        console.error('[SMTP AUTH ERROR] Check SMTP credentials in .env');
+        return res.status(500).json({ 
+          error: 'Email service configuration error. Please contact support.' 
+        });
+      }
+      
       throw mailErr;
     }
 
@@ -1905,12 +1923,12 @@ app.post('/api/public/auth/request-password-reset', async (req, res) => {
         text: textContent,
         html: htmlContent
       });
+      console.log(`[PASSWORD RESET] Reset email sent to ${normalizedEmail}`);
     } catch (mailErr) {
-      console.error('[PASSWORD RESET EMAIL ERROR]', mailErr);
-      // Still return success for security, even if email fails
+      console.error('[PASSWORD RESET EMAIL ERROR]', mailErr.message);
+      // Still log for debugging, even if email fails (for security, we don't expose this to user)
     }
 
-    console.log(`[PASSWORD RESET] Reset email sent to ${normalizedEmail}`);
     return res.json({
       ok: true,
       message: 'If an account exists with that email, a reset link has been sent.'
