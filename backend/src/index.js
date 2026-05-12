@@ -1845,10 +1845,17 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
           smtp_host: SMTP_HOST,
           smtp_port: SMTP_PORT,
           smtp_user: SMTP_USER,
-          message: 'Check SMTP credentials in .env'
+          error_msg: mailErr.message,
+          solution: 'Check if Brevo SMTP credentials are correct. Go to https://app.brevo.com/settings/keys-api'
         });
         return res.status(500).json({ 
-          error: 'Email service configuration error. Please contact support.' 
+          ok: false,
+          error: 'SMTP Authentication Failed: Invalid credentials. Please check your Brevo API keys at https://app.brevo.com/settings/keys-api',
+          details: {
+            code: 'AUTH_FAILED',
+            smtp_host: SMTP_HOST,
+            smtp_user: SMTP_USER
+          }
         });
       }
       
@@ -1956,7 +1963,7 @@ app.post('/api/public/auth/verify-confirmation', async (req, res) => {
         .from('schools')
         .insert({
           name: school_name,
-          approval_status: 'pending',
+          status: 'pending',
           subscription_plan: 'demo',
           subscription_status: 'demo',
           subscription_expires_at: demoExpiresAt.toISOString().slice(0, 10),
