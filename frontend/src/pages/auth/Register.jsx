@@ -32,6 +32,31 @@ export default function Register() {
   const normalizeSchoolCode = (value) => String(value || '').trim().toUpperCase();
   const apiBaseUrl = API_URL;
 
+  const sendSchoolAdminConfirmation = async () => {
+    if (!schoolName) throw new Error('School name is required for admin signup');
+
+    const emailRes = await fetch(`${apiBaseUrl}/api/public/auth/send-confirmation-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        full_name: fullName,
+        school_name: schoolName
+      })
+    });
+
+    const emailData = await emailRes.json();
+    if (!emailRes.ok) {
+      throw new Error(emailData.error || 'Failed to send confirmation email');
+    }
+
+    setVerificationEmail(email);
+    setVerificationMessage(
+      emailData.message || 'Check your inbox and open the confirmation link we sent.'
+    );
+    setShowVerificationSent(true);
+  };
+
   useEffect(() => {
     supabase
       .from('school_directory')
@@ -85,32 +110,7 @@ export default function Register() {
 
     try {
       if (role === 'school_admin') {
-        if (!schoolName) throw new Error('School name is required for admin signup');
-
-        // Send custom confirmation email
-        const emailRes = await fetch(`${apiBaseUrl}/api/public/auth/send-confirmation-email`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email,
-            full_name: fullName,
-            school_name: schoolName
-          })
-        });
-
-        if (!emailRes.ok) {
-          const errorData = await emailRes.json();
-          throw new Error(errorData.error || 'Failed to send confirmation email');
-        }
-
-        const emailData = await emailRes.json();
-
-        // Show verification sent message
-        setVerificationEmail(email);
-        setVerificationMessage(
-          emailData.message || 'Check your inbox and open the confirmation link we sent.'
-        );
-        setShowVerificationSent(true);
+        await sendSchoolAdminConfirmation();
         setLoading(false);
         return;
       }
@@ -212,12 +212,24 @@ export default function Register() {
           <p className="text-xs text-center text-slate-500 mt-4">
             Didn't receive the email?{' '}
             <button 
-              onClick={() => setShowVerificationSent(false)}
+              onClick={async () => {
+                setError(null);
+                setLoading(true);
+                try {
+                  await sendSchoolAdminConfirmation();
+                } catch (err) {
+                  setError(err.message);
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
               className="text-brand-600 hover:underline"
             >
-              Try again
+              {loading ? 'Sending...' : 'Try again'}
             </button>
           </p>
+          {error && <div className="mt-3 text-sm text-center text-rose-600">{error}</div>}
         </div>
       </div>
     );

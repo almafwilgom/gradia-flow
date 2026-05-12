@@ -1522,14 +1522,14 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
       const sentRecently =
         now - new Date(existingToken.last_sent_at || existingToken.created_at || now).getTime() <
         CONFIRMATION_RESEND_COOLDOWN_MS;
-      return res.json({
-        ok: true,
-        reused: true,
-        message: sentRecently
-          ? 'A confirmation email was already sent recently. Please check your inbox or spam folder.'
-          : 'A confirmation link is already active for this email. Please use the confirmation email already in your inbox.',
-        token_expires_in: '24 hours'
-      });
+      if (sentRecently) {
+        return res.json({
+          ok: true,
+          reused: true,
+          message: 'A confirmation email was already sent recently. Please check your inbox or spam folder.',
+          token_expires_in: '24 hours'
+        });
+      }
     }
 
     const { data: existingUserPage, error: existingUserErr } = await supabaseService.auth.admin.listUsers();
@@ -1621,7 +1621,14 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
     }
 
     console.log(`[EMAIL] Confirmation email sent to ${normalizedEmail}`);
-    return res.json({ ok: true, message: 'Confirmation email sent successfully', token_expires_in: '24 hours' });
+    return res.json({
+      ok: true,
+      reused: Boolean(existingToken?.id),
+      message: existingToken?.id
+        ? 'Confirmation email resent successfully. Please check your inbox or spam folder.'
+        : 'Confirmation email sent successfully',
+      token_expires_in: '24 hours'
+    });
   } catch (err) {
     console.error('[EMAIL ERROR]', err);
     return res.status(500).json({ error: err.message });
@@ -2377,4 +2384,3 @@ function fallbackSummary(student, results) {
 function roundTwo(value) {
   return Math.round(value * 100) / 100;
 }
-
