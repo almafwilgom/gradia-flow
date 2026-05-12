@@ -1410,69 +1410,285 @@ function createEmailTemplate(schoolName, confirmationUrl, userName) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>GradiaFlow - Confirm Your Email</title>
     <style>
-        body { margin: 0; padding: 0; background: #edf3ff; font-family: Arial, sans-serif; color: #10213a; }
-        .wrapper { width: 100%; padding: 32px 16px; }
-        .container { max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 45px rgba(15, 38, 95, 0.12); }
-        .header { padding: 36px 36px 24px; background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 65%, #60a5fa 100%); color: #ffffff; }
-        .brand { font-size: 28px; font-weight: 700; margin: 0 0 10px; letter-spacing: -0.02em; }
-        .eyebrow { display: inline-block; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.18); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
-        .headline { margin: 18px 0 8px; font-size: 28px; line-height: 1.2; }
-        .subcopy { margin: 0; color: rgba(255, 255, 255, 0.88); font-size: 15px; line-height: 1.6; }
-        .content { padding: 32px 36px 20px; }
-        .greeting { margin: 0 0 16px; font-size: 20px; font-weight: 700; color: #0f172a; }
-        .copy { margin: 0 0 18px; font-size: 15px; line-height: 1.75; color: #334155; }
-        .schoolCard { margin: 22px 0; padding: 18px 20px; border-radius: 18px; background: #f8fbff; border: 1px solid #dbeafe; }
-        .schoolLabel { margin: 0 0 6px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #2563eb; }
-        .schoolName { margin: 0; font-size: 20px; font-weight: 700; color: #0f172a; }
-        .ctaWrap { text-align: center; padding: 12px 0 8px; }
-        .cta { display: inline-block; padding: 15px 28px; border-radius: 14px; background: linear-gradient(135deg, #2563eb 0%, #16a34a 100%); color: #ffffff !important; text-decoration: none; font-weight: 700; font-size: 15px; }
-        .hint { margin: 22px 0 0; padding: 16px 18px; border-radius: 16px; background: #f8fafc; border: 1px solid #e2e8f0; font-size: 13px; line-height: 1.7; color: #475569; word-break: break-word; }
-        .footer { padding: 22px 36px 34px; color: #64748b; font-size: 12px; line-height: 1.7; }
-        .footer a { color: #2563eb; text-decoration: none; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+            color: #2c3e50;
+        }
+        .wrapper {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .container {
+            background: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 30px;
+            text-align: center;
+            color: #ffffff;
+        }
+        .logo {
+            font-size: 32px;
+            font-weight: 800;
+            margin-bottom: 10px;
+            letter-spacing: -1px;
+        }
+        .badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+        }
+        .header-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            line-height: 1.3;
+        }
+        .header-subtitle {
+            font-size: 15px;
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+        .content {
+            padding: 40px 30px;
+        }
+        .greeting {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        .text {
+            font-size: 14px;
+            line-height: 1.8;
+            color: #555;
+            margin-bottom: 20px;
+        }
+        .info-box {
+            background: linear-gradient(135deg, #f5f7fa 0%, #f0f3ff 100%);
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 25px 0;
+        }
+        .info-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #667eea;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .info-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+        .steps {
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 25px 0;
+        }
+        .steps-title {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #667eea;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+        .step {
+            display: flex;
+            margin-bottom: 12px;
+            font-size: 13px;
+            color: #555;
+            line-height: 1.6;
+        }
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            font-weight: 700;
+            font-size: 12px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        .cta-wrapper {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #ffffff !important;
+            text-decoration: none;
+            padding: 16px 40px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 15px;
+            letter-spacing: 0.3px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        .backup-link {
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            background: #f5f7fa;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #666;
+            word-break: break-all;
+        }
+        .backup-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .security-note {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            font-size: 13px;
+            color: #856404;
+            line-height: 1.6;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            border-top: 1px solid #e9ecef;
+            font-size: 12px;
+            color: #6c757d;
+            line-height: 1.8;
+        }
+        .footer-links {
+            margin: 10px 0;
+        }
+        .footer-links a {
+            color: #667eea;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+        .divider {
+            width: 40px;
+            height: 2px;
+            background: #667eea;
+            margin: 10px auto;
+        }
     </style>
 </head>
 <body>
     <div class="wrapper">
-      <div class="container">
-        <div class="header">
-            <div class="eyebrow">School Admin Setup</div>
-            <h1 class="brand">GradiaFlow</h1>
-            <h2 class="headline">Confirm your email to finish setup</h2>
-            <p class="subcopy">Your school workspace is almost ready. We just need to verify this email address before we activate your admin account.</p>
-        </div>
-        <div class="content">
-            <p class="greeting">Hello ${userName},</p>
-            <p class="copy">
-                Thanks for creating a GradiaFlow school admin account. Once you confirm this email,
-                we will complete the registration for your school and prepare your live workspace.
-            </p>
-            <div class="schoolCard">
-                <p class="schoolLabel">School registration</p>
-                <p class="schoolName">${schoolName}</p>
+        <div class="container">
+            <!-- Header -->
+            <div class="header">
+                <div class="badge">Email Verification</div>
+                <div class="logo">GradiaFlow</div>
+                <div class="header-title">Verify Your Email Address</div>
+                <p class="header-subtitle">Complete your school admin setup in less than a minute</p>
             </div>
-            <p class="copy">
-                Click the button below to confirm your email address. This secure link expires in 24 hours.
-            </p>
-            <div class="ctaWrap">
-                <a href="${confirmationUrl}" class="cta">Confirm Email Address</a>
+
+            <!-- Content -->
+            <div class="content">
+                <p class="greeting">Hello ${userName},</p>
+
+                <p class="text">
+                    Welcome to GradiaFlow! We're excited to have you on board. You're just one step away from setting up your school's complete management system.
+                </p>
+
+                <!-- School Info -->
+                <div class="info-box">
+                    <div class="info-label">📚 Your School</div>
+                    <div class="info-value">${schoolName}</div>
+                </div>
+
+                <!-- Steps -->
+                <div class="steps">
+                    <div class="steps-title">⚡ What's Next?</div>
+                    <div class="step">
+                        <div class="step-number">1</div>
+                        <div>Click the confirmation button below</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <div>Create a secure password for your admin account</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <div>Access your school's management dashboard</div>
+                    </div>
+                </div>
+
+                <!-- CTA Button -->
+                <div class="cta-wrapper">
+                    <a href="${confirmationUrl}" class="cta-button">Confirm Email Address</a>
+                </div>
+
+                <!-- Backup Link -->
+                <div class="backup-link">
+                    <strong>Can't click the button?</strong><br>
+                    Copy and paste this link in your browser:<br>
+                    <a href="${confirmationUrl}">${confirmationUrl}</a>
+                </div>
+
+                <!-- Security Note -->
+                <div class="security-note">
+                    <strong>🔒 Security Notice:</strong> This link will expire in 24 hours for your protection. If you didn't create a GradiaFlow account, please ignore this email and report it if necessary.
+                </div>
+
+                <p class="text" style="margin-top: 25px; color: #999; font-size: 13px;">
+                    This confirmation email is unique to your account. Don't share this link with anyone else.
+                </p>
             </div>
-            <div class="hint">
-                If the button does not open, copy and paste this link into your browser:<br><br>
-                ${confirmationUrl}
+
+            <!-- Footer -->
+            <div class="footer">
+                <div style="margin-bottom: 15px;">
+                    <strong>GradiaFlow</strong><br>
+                    Smart School Management Platform
+                </div>
+                <div class="divider"></div>
+                <div class="footer-links">
+                    <a href="https://gradiaflow.com">Website</a>
+                    <a href="https://gradiaflow.com/support">Support</a>
+                    <a href="https://gradiaflow.com/privacy">Privacy</a>
+                </div>
+                <div style="margin-top: 15px; font-size: 11px; color: #999;">
+                    © 2026 GradiaFlow. All rights reserved.<br>
+                    If you have questions, contact us at support@gradiaflow.com
+                </div>
             </div>
-            <p class="copy" style="margin-top: 22px; font-size: 13px; color: #64748b;">
-                If you did not request this account, you can safely ignore this email.
-            </p>
         </div>
-        <div class="footer">
-            GradiaFlow<br>
-            Smart school management powered by AI.<br>
-            <a href="https://gradiaflow.com">Visit website</a> | <a href="https://gradiaflow.com/support">Support</a><br>
-            &copy; 2026 GradiaFlow. All rights reserved.
-        </div>
-      </div>
     </div>
 </body>
 </html>
@@ -1481,20 +1697,40 @@ function createEmailTemplate(schoolName, confirmationUrl, userName) {
 
 function createPlainTextConfirmation(schoolName, confirmationUrl, userName) {
   return [
+    `═══════════════════════════════════════════════════════════`,
+    `  GRADIAFLOW - EMAIL VERIFICATION`,
+    `═══════════════════════════════════════════════════════════`,
+    ``,
     `Hello ${userName},`,
-    '',
-    'Thanks for creating a GradiaFlow school admin account.',
-    `School: ${schoolName}`,
-    '',
-    'Confirm your email address to finish setting up your school workspace:',
-    confirmationUrl,
-    '',
-    'This link expires in 24 hours.',
-    '',
-    'If you did not request this account, you can ignore this email.',
-    '',
-    'GradiaFlow',
-    'https://gradiaflow.com'
+    ``,
+    `Thank you for signing up as a school admin on GradiaFlow!`,
+    ``,
+    `SCHOOL INFORMATION:`,
+    `  School: ${schoolName}`,
+    ``,
+    `ACTION REQUIRED:`,
+    `Please confirm your email address by clicking the link below:`,
+    ``,
+    `${confirmationUrl}`,
+    ``,
+    `NEXT STEPS:`,
+    `1. Click the confirmation link above`,
+    `2. Set a secure password for your admin account`,
+    `3. Access your school management dashboard`,
+    ``,
+    `IMPORTANT:`,
+    `• This link expires in 24 hours`,
+    `• Don't share this link with anyone else`,
+    `• If you didn't create this account, please ignore this email`,
+    ``,
+    `NEED HELP?`,
+    `Visit: https://gradiaflow.com/support`,
+    `Email: support@gradiaflow.com`,
+    ``,
+    `═══════════════════════════════════════════════════════════`,
+    `GradiaFlow - Smart School Management Platform`,
+    `© 2026 GradiaFlow. All rights reserved.`,
+    `═══════════════════════════════════════════════════════════`
   ].join('\n');
 }
 
@@ -1515,6 +1751,8 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
     const normalizedSchoolName = String(school_name).trim();
     const now = Date.now();
 
+    console.log(`[EMAIL] Starting confirmation email process for ${normalizedEmail}`);
+
     await pruneExpiredConfirmationTokens();
 
     const existingToken = await findConfirmationTokenByEmail(normalizedEmail);
@@ -1523,6 +1761,7 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
         now - new Date(existingToken.last_sent_at || existingToken.created_at || now).getTime() <
         CONFIRMATION_RESEND_COOLDOWN_MS;
       if (sentRecently) {
+        console.log(`[EMAIL] Token sent recently to ${normalizedEmail}, rate limiting applied`);
         return res.json({
           ok: true,
           reused: true,
@@ -1533,11 +1772,15 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
     }
 
     const { data: existingUserPage, error: existingUserErr } = await supabaseService.auth.admin.listUsers();
-    if (existingUserErr) return res.status(500).json({ error: existingUserErr.message });
+    if (existingUserErr) {
+      console.error(`[EMAIL] Error listing users: ${existingUserErr.message}`);
+      return res.status(500).json({ error: existingUserErr.message });
+    }
     const alreadyRegistered = existingUserPage?.users?.some(
       (user) => String(user.email || '').toLowerCase() === normalizedEmail
     );
     if (alreadyRegistered) {
+      console.log(`[EMAIL] Email already registered: ${normalizedEmail}`);
       return res.status(400).json({ error: 'This email is already registered. Please sign in instead.' });
     }
 
@@ -1548,18 +1791,21 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
     const htmlContent = createEmailTemplate(normalizedSchoolName, confirmationUrl, normalizedName);
     const textContent = createPlainTextConfirmation(normalizedSchoolName, confirmationUrl, normalizedName);
 
+    console.log(`[EMAIL] Creating transporter with SMTP_HOST=${SMTP_HOST}, SMTP_PORT=${SMTP_PORT}`);
+
     const transporter = nodemailer.createTransport({
       host: SMTP_HOST,
       port: Number(SMTP_PORT) || 587,
       secure: Number(SMTP_PORT) === 465,
       auth: {
         user: SMTP_USER,
-        pass: SMTP_PASS
+        pass: SMTP_PASS ? '***' : 'NOT_SET'
       }
     });
 
     try {
-      await transporter.sendMail({
+      console.log(`[EMAIL] Sending confirmation email to ${normalizedEmail} for school ${normalizedSchoolName}`);
+      const mailResponse = await transporter.sendMail({
         from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM_ADDRESS || SMTP_USER}>`,
         replyTo: EMAIL_FROM_ADDRESS || SMTP_USER,
         to: normalizedEmail,
@@ -1567,30 +1813,53 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
         text: textContent,
         html: htmlContent
       });
+      console.log(`[EMAIL] Email sent successfully to ${normalizedEmail}`, { messageId: mailResponse?.messageId });
     } catch (mailErr) {
       const message = String(mailErr?.message || '').toLowerCase();
-      console.error('[EMAIL SEND ERROR]', mailErr.message);
+      console.error('[EMAIL SEND ERROR]', {
+        email: normalizedEmail,
+        error: mailErr.message,
+        code: mailErr.code
+      });
       
       // Handle Gmail rate limiting
       if (message.includes('rate limit') || message.includes('too many') || message.includes('429')) {
         // If token already exists, suggest using the existing one
         if (existingToken) {
+          console.log(`[EMAIL] Rate limit hit, but token exists for ${normalizedEmail}`);
           return res.json({
             ok: true,
             reused: true,
             message: 'Email service is temporarily rate limited. Please use the confirmation email already in your inbox (may take a few minutes to arrive).'
           });
         }
+        console.log(`[EMAIL] Rate limit hit for ${normalizedEmail}`);
         return res.status(429).json({ 
           error: 'Too many emails sent. Please try again in a few minutes.' 
         });
       }
       
       // Handle authentication errors
-      if (message.includes('invalid login') || message.includes('authentication')) {
-        console.error('[SMTP AUTH ERROR] Check SMTP credentials in .env');
+      if (message.includes('invalid login') || message.includes('authentication') || message.includes('unauthorized')) {
+        console.error('[SMTP AUTH ERROR]', {
+          smtp_host: SMTP_HOST,
+          smtp_port: SMTP_PORT,
+          smtp_user: SMTP_USER,
+          message: 'Check SMTP credentials in .env'
+        });
         return res.status(500).json({ 
           error: 'Email service configuration error. Please contact support.' 
+        });
+      }
+      
+      // Handle connection errors
+      if (message.includes('econnrefused') || message.includes('timeout') || message.includes('enotfound')) {
+        console.error('[SMTP CONNECTION ERROR]', {
+          smtp_host: SMTP_HOST,
+          message: 'Cannot connect to SMTP server'
+        });
+        return res.status(500).json({ 
+          error: 'Email service is unavailable. Please try again later.' 
         });
       }
       
@@ -1612,15 +1881,21 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
         .from('email_confirmation_tokens')
         .update(tokenPayload)
         .eq('id', existingToken.id);
-      if (updateErr) throw updateErr;
+      if (updateErr) {
+        console.error(`[EMAIL] Error updating token: ${updateErr.message}`);
+        throw updateErr;
+      }
     } else {
       const { error: insertErr } = await supabaseService
         .from('email_confirmation_tokens')
         .insert(tokenPayload);
-      if (insertErr) throw insertErr;
+      if (insertErr) {
+        console.error(`[EMAIL] Error inserting token: ${insertErr.message}`);
+        throw insertErr;
+      }
     }
 
-    console.log(`[EMAIL] Confirmation email sent to ${normalizedEmail}`);
+    console.log(`[EMAIL] Confirmation email sent successfully to ${normalizedEmail}`);
     return res.json({
       ok: true,
       reused: Boolean(existingToken?.id),
@@ -1630,7 +1905,11 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
       token_expires_in: '24 hours'
     });
   } catch (err) {
-    console.error('[EMAIL ERROR]', err);
+    console.error('[EMAIL ERROR]', {
+      email: req.body.email,
+      error: err.message,
+      stack: err.stack
+    });
     return res.status(500).json({ error: err.message });
   }
 });
@@ -1728,6 +2007,118 @@ app.post('/api/public/auth/verify-confirmation', async (req, res) => {
     });
   } catch (err) {
     console.error('[VERIFICATION ERROR]', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Test email delivery (for debugging)
+app.post('/api/public/auth/test-email', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+      return res.status(500).json({ error: 'Email service not configured' });
+    }
+
+    console.log('[TEST EMAIL] Starting email test to', email);
+
+    const transporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: Number(SMTP_PORT) || 587,
+      secure: Number(SMTP_PORT) === 465,
+      auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS
+      }
+    });
+
+    try {
+      console.log('[TEST EMAIL] Testing connection to SMTP server...');
+      await transporter.verify();
+      console.log('[TEST EMAIL] SMTP connection verified');
+
+      const testHTML = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+            <h1 style="margin: 0;">GradiaFlow Email Test</h1>
+          </div>
+          <div style="padding: 30px; background: white; border-radius: 0 0 8px 8px; border: 1px solid #e0e0e0;">
+            <p style="margin-top: 0;">Hello,</p>
+            <p>This is a test email to verify that Brevo SMTP is working correctly.</p>
+            <p><strong>Test Details:</strong></p>
+            <ul>
+              <li>To: ${email}</li>
+              <li>From: ${EMAIL_FROM_ADDRESS || SMTP_USER}</li>
+              <li>SMTP Host: ${SMTP_HOST}</li>
+              <li>SMTP Port: ${SMTP_PORT}</li>
+              <li>Timestamp: ${new Date().toISOString()}</li>
+            </ul>
+            <p style="color: #667eea; font-weight: bold;">✓ Email delivery is working!</p>
+          </div>
+        </div>
+      `;
+
+      const testText = `
+GradiaFlow Email Test
+
+This is a test email to verify that Brevo SMTP is working correctly.
+
+Test Details:
+- To: ${email}
+- From: ${EMAIL_FROM_ADDRESS || SMTP_USER}
+- SMTP Host: ${SMTP_HOST}
+- SMTP Port: ${SMTP_PORT}
+- Timestamp: ${new Date().toISOString()}
+
+✓ Email delivery is working!
+      `.trim();
+
+      console.log('[TEST EMAIL] Sending test email...');
+      const info = await transporter.sendMail({
+        from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM_ADDRESS || SMTP_USER}>`,
+        replyTo: EMAIL_FROM_ADDRESS || SMTP_USER,
+        to: email,
+        subject: '✓ GradiaFlow Email Test - Brevo SMTP Working',
+        text: testText,
+        html: testHTML
+      });
+
+      console.log('[TEST EMAIL] Email sent successfully', {
+        messageId: info.messageId,
+        response: info.response
+      });
+
+      return res.json({
+        ok: true,
+        message: 'Test email sent successfully!',
+        details: {
+          email,
+          smtpHost: SMTP_HOST,
+          smtpPort: SMTP_PORT,
+          messageId: info.messageId,
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (mailErr) {
+      console.error('[TEST EMAIL] Sending failed', {
+        error: mailErr.message,
+        code: mailErr.code
+      });
+      return res.status(500).json({
+        ok: false,
+        error: mailErr.message,
+        details: {
+          smtpHost: SMTP_HOST,
+          smtpPort: SMTP_PORT,
+          smtpUser: SMTP_USER
+        }
+      });
+    }
+  } catch (err) {
+    console.error('[TEST EMAIL ERROR]', err);
     return res.status(500).json({ error: err.message });
   }
 });

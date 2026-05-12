@@ -5,11 +5,13 @@ import { API_URL } from '../../lib/api';
 export default function ConfirmEmail() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [status, setStatus] = useState('loading'); // loading, success, error
+  const [status, setStatus] = useState('loading'); // loading, success, error, ready
   const [error, setError] = useState(null);
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [passwordError, setPasswordError] = useState(null);
 
   const token = searchParams.get('token');
   const apiBaseUrl = API_URL;
@@ -17,7 +19,7 @@ export default function ConfirmEmail() {
   useEffect(() => {
     if (!token) {
       setStatus('error');
-      setError('No confirmation token provided');
+      setError('No confirmation token provided. Please check your email link.');
       return;
     }
 
@@ -26,20 +28,39 @@ export default function ConfirmEmail() {
     setStatus('ready');
   }, [token]);
 
+  const validatePassword = () => {
+    setPasswordError(null);
+
+    if (!password) {
+      setPasswordError('Please enter a password');
+      return false;
+    }
+
+    if (password.length < 6) {
+      setPasswordError('Password must be at least 6 characters');
+      return false;
+    }
+
+    if (password !== confirmPassword) {
+      setPasswordError('Passwords do not match');
+      return false;
+    }
+
+    return true;
+  };
+
   const handleConfirm = async (e) => {
     e.preventDefault();
+    
+    if (!validatePassword()) {
+      return;
+    }
+
     setConfirming(true);
     setError(null);
+    setPasswordError(null);
 
     try {
-      if (!password) {
-        throw new Error('Please enter a password');
-      }
-
-      if (password.length < 6) {
-        throw new Error('Password must be at least 6 characters');
-      }
-
       const res = await fetch(`${apiBaseUrl}/api/public/auth/verify-confirmation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -60,7 +81,7 @@ export default function ConfirmEmail() {
 
       // Redirect to login after 2 seconds
       setTimeout(() => {
-        window.location.href = '/login';
+        navigate('/login');
       }, 2000);
     } catch (err) {
       setError(err.message);
@@ -70,11 +91,12 @@ export default function ConfirmEmail() {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-        <div className="bg-white shadow-card rounded-2xl w-full max-w-lg p-8 border border-slate-100">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center px-4 py-8">
+        <div className="bg-white shadow-xl rounded-2xl w-full max-w-lg p-8 border border-slate-200">
           <div className="text-center">
-            <div className="w-12 h-12 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-slate-600">Verifying your email...</p>
+            <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-6"></div>
+            <p className="text-slate-600 font-medium">Verifying your email address...</p>
+            <p className="text-sm text-slate-500 mt-2">This may take a moment</p>
           </div>
         </div>
       </div>
@@ -83,36 +105,40 @@ export default function ConfirmEmail() {
 
   if (status === 'error' && !showPasswordForm) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-        <div className="bg-white shadow-card rounded-2xl w-full max-w-lg p-8 border border-slate-100">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center px-4 py-8">
+        <div className="bg-white shadow-xl rounded-2xl w-full max-w-lg p-8 border border-slate-200">
           <div className="text-center mb-6">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
-            <div className="text-2xl font-semibold text-slate-900">Link Expired</div>
-            <p className="text-sm text-slate-500 mt-2">{error}</p>
+            <div className="text-2xl font-bold text-slate-900">Verification Failed</div>
+            <p className="text-sm text-slate-500 mt-2">Link Expired or Invalid</p>
           </div>
 
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
-            <p className="text-sm text-amber-800">
-              Your confirmation link has expired. Please register again to receive a new link.
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-red-800">
+              <strong>Error:</strong> {error || 'Your confirmation link has expired or is invalid.'}
             </p>
           </div>
 
+          <p className="text-sm text-slate-600 mb-6">
+            Confirmation links expire after 24 hours for security. Please register again to receive a fresh confirmation link.
+          </p>
+
           <Link
             to="/register"
-            className="block w-full text-center rounded-lg bg-brand-600 text-white py-2 font-semibold hover:bg-brand-700 transition mb-3"
+            className="block w-full text-center rounded-lg bg-blue-600 text-white py-3 font-semibold hover:bg-blue-700 transition mb-3"
           >
             Register Again
           </Link>
 
           <Link
             to="/login"
-            className="block w-full text-center rounded-lg border border-slate-200 text-slate-600 py-2 font-semibold hover:bg-slate-50 transition"
+            className="block w-full text-center rounded-lg border border-slate-300 text-slate-700 py-3 font-semibold hover:bg-slate-50 transition"
           >
-            Go to Login
+            Back to Login
           </Link>
         </div>
       </div>
@@ -121,34 +147,130 @@ export default function ConfirmEmail() {
 
   if (status === 'success') {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-        <div className="bg-white shadow-card rounded-2xl w-full max-w-lg p-8 border border-slate-100">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center px-4 py-8">
+        <div className="bg-white shadow-xl rounded-2xl w-full max-w-lg p-8 border border-slate-200">
           <div className="text-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <div className="text-2xl font-semibold text-slate-900">Email Confirmed!</div>
-            <p className="text-sm text-slate-500 mt-2">Your account is ready to use</p>
+            <div className="text-2xl font-bold text-slate-900">Email Confirmed!</div>
+            <p className="text-sm text-slate-500 mt-2">Account setup complete</p>
           </div>
 
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 my-6">
             <p className="text-sm text-green-800">
-              Your email has been successfully verified. Redirecting to login...
+              ✓ Your email has been successfully verified. Your school admin account is now ready to use!
+            </p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-blue-800">
+              You will be redirected to the login page in a moment. If not, click the button below.
             </p>
           </div>
 
           <Link
             to="/login"
-            className="block w-full text-center rounded-lg bg-brand-600 text-white py-2 font-semibold hover:bg-brand-700 transition"
+            className="block w-full text-center rounded-lg bg-blue-600 text-white py-3 font-semibold hover:bg-blue-700 transition"
           >
-            Go to Login
+            Continue to Login
           </Link>
         </div>
       </div>
     );
   }
+
+  // status === 'ready' - show password form
+  if (showPasswordForm) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center px-4 py-8">
+        <div className="bg-white shadow-xl rounded-2xl w-full max-w-lg p-8 border border-slate-200">
+          <div className="text-center mb-8">
+            <div className="text-3xl font-bold text-slate-900 mb-2">Create Admin Password</div>
+            <p className="text-slate-500">Complete your school admin setup</p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+            <p className="text-sm text-blue-800">
+              Your email has been verified successfully. Now set a secure password to complete your account setup.
+            </p>
+          </div>
+
+          <form onSubmit={handleConfirm} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Password
+              </label>
+              <input
+                type="password"
+                className={`w-full rounded-lg border ${passwordError ? 'border-red-400' : 'border-slate-300'} px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200`}
+                placeholder="Enter a secure password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={confirming}
+                required
+              />
+              <p className="text-xs text-slate-500 mt-1">At least 6 characters</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                className={`w-full rounded-lg border ${passwordError ? 'border-red-400' : 'border-slate-300'} px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200`}
+                placeholder="Confirm your password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                disabled={confirming}
+                required
+              />
+            </div>
+
+            {passwordError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-700">{passwordError}</p>
+              </div>
+            )}
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={confirming}
+              className="w-full rounded-lg bg-blue-600 text-white py-3 font-semibold hover:bg-blue-700 transition disabled:bg-slate-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {confirming ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Setting up account...
+                </>
+              ) : (
+                'Complete Setup'
+              )}
+            </button>
+          </form>
+
+          <p className="text-xs text-center text-slate-500 mt-6">
+            Don't have a confirmation link?{' '}
+            <Link to="/register" className="text-blue-600 hover:underline font-medium">
+              Register again
+            </Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
