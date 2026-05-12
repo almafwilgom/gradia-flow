@@ -46,7 +46,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key-here
 
 ```
 VITE_SUPABASE_URL=https://abcdefghij123.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
 ```
 
 ### Step 5: Restart Dev Server

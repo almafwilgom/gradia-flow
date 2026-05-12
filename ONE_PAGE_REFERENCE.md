@@ -54,7 +54,7 @@ npm run dev
 **Example:**
 ```
 VITE_SUPABASE_URL=https://abcdefgh.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
 ```
 
 ---

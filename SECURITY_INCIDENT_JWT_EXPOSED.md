@@ -72,7 +72,7 @@ git push origin --force-with-lease --all
 PORT=4000
 SUPABASE_URL=https://didveimpmnxdlfbivhru.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=[PASTE YOUR NEW KEY HERE]
-SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_ANON_KEY=your_supabase_anon_key_here
 OPENAI_API_KEY=sk-proj-...
 ```
 

@@ -66,7 +66,7 @@ supabase functions deploy send-sms --no-verify-jwt
 **Frontend (.env):**
 ```
 VITE_SUPABASE_URL=https://didveimpmnxdlfbivhru.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
 VITE_APP_ENV=development
 VITE_API_URL=http://localhost:4000
 ```
@@ -75,7 +75,7 @@ VITE_API_URL=http://localhost:4000
 ```
 PORT=4000
 SUPABASE_URL=https://didveimpmnxdlfbivhru.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
 OPENAI_API_KEY=sk-proj-WLwJjmEDKjKOS4AC_...
 ```
 
