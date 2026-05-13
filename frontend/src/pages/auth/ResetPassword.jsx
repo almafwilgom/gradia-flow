@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Lock, Check, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { LockClosedIcon, CheckCircleIcon, ExclamationTriangleIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { API_URL } from '../../lib/api';
 
 export default function ResetPassword() {
@@ -117,7 +117,7 @@ export default function ResetPassword() {
           <div className="bg-white rounded-2xl shadow-xl p-8 border border-red-200">
             <div className="flex justify-center mb-4">
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="text-red-600" size={32} />
+                <ExclamationTriangleIcon className="text-red-600 h-8 w-8" />
               </div>
             </div>
             <h2 className="text-2xl font-bold text-center text-gray-900 mb-3">
@@ -145,7 +145,7 @@ export default function ResetPassword() {
           <div className="bg-white rounded-2xl shadow-xl p-8 border border-green-200 text-center">
             <div className="mb-6 flex justify-center">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                <Check className="text-green-600" size={32} />
+                <CheckCircleIcon className="text-green-600 h-8 w-8" />
               </div>
             </div>
 
@@ -203,7 +203,7 @@ export default function ResetPassword() {
                 New Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <LockClosedIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
@@ -217,7 +217,11 @@ export default function ResetPassword() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showPassword ? (
+                    <EyeSlashIcon className="h-5 w-5" />
+                  ) : (
+                    <EyeIcon className="h-5 w-5" />
+                  )}
                 </button>
               </div>
               <p className="mt-1 text-xs text-gray-500">
@@ -231,7 +235,7 @@ export default function ResetPassword() {
                 Confirm Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <LockClosedIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={confirmPassword}
@@ -245,7 +249,11 @@ export default function ResetPassword() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showPassword ? (
+                    <EyeSlashIcon className="h-5 w-5" />
+                  ) : (
+                    <EyeIcon className="h-5 w-5" />
+                  )}
                 </button>
               </div>
             </div>
