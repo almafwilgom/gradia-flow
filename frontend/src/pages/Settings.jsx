@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../hooks/useAuth';
@@ -12,6 +13,7 @@ function formatStatus(school) {
 
 
 export default function Settings() {
+  const navigate = useNavigate();
   const { profile, loading: authLoading } = useAuth();
   const [school, setSchool] = useState(null);
   const [schools, setSchools] = useState([]);
@@ -219,6 +221,23 @@ export default function Settings() {
               </label>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Security & Password Section */}
+      <div className="bg-white rounded-xl p-6 shadow-soft border border-slate-100">
+        <h2 className="text-lg font-bold text-slate-800 mb-2">Security</h2>
+        <p className="text-sm text-slate-500 mb-4">Manage your account security and password</p>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <button
+            onClick={() => navigate('/auth/forgot-password')}
+            className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-200 transition-colors"
+          >
+            Change Password
+          </button>
+          <p className="text-xs text-slate-400 max-w-xs">
+            For security, you'll be sent an email with a link to securely change your password.
+          </p>
         </div>
       </div>
 

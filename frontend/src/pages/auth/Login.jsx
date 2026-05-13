@@ -157,8 +157,14 @@ export default function Login() {
                 />
               </div>
               {role === 'school_admin' && (
-                <div className="text-right">
-                  <Link to="/auth/forgot-password" className="text-sm font-medium text-brand-600 hover:text-brand-700">
+                <div className="flex justify-between items-center py-1">
+                  <div className="text-xs text-slate-500">
+                    Difficulty signing in?
+                  </div>
+                  <Link 
+                    to="/auth/forgot-password" 
+                    className="text-sm font-semibold text-brand-600 hover:text-brand-700 hover:underline flex items-center gap-1"
+                  >
                     Forgot password?
                   </Link>
                 </div>

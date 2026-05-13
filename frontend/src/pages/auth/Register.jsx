@@ -35,6 +35,7 @@ export default function Register() {
   const sendSchoolAdminConfirmation = async () => {
     if (!schoolName) throw new Error('School name is required for admin signup');
 
+    console.log(`[AUTH] Sending confirmation email to ${email} for school ${school_name} via ${apiBaseUrl}`);
     const emailRes = await fetch(`${apiBaseUrl}/api/public/auth/send-confirmation-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -44,6 +45,7 @@ export default function Register() {
         school_name: schoolName
       })
     });
+    console.log(`[AUTH] Email response status: ${emailRes.status}`);
 
     const emailData = await emailRes.json();
     if (!emailRes.ok) {
@@ -109,7 +111,9 @@ export default function Register() {
     setLoading(true);
 
     try {
+      console.log(`[AUTH] Registering with role: ${role}`);
       if (role === 'school_admin') {
+        console.log('[AUTH] Entering School Admin confirmation flow');
         await sendSchoolAdminConfirmation();
         setLoading(false);
         return;
@@ -196,7 +200,7 @@ export default function Register() {
           </div>
 
           <button
-            onClick={() => window.location.href = 'https://gradiaflow.com/login'}
+            onClick={() => navigate('/login')}
             className="w-full rounded-lg bg-brand-600 text-white py-2 font-semibold hover:bg-brand-700 transition mb-3"
           >
             Go to Login

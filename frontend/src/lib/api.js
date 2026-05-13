@@ -4,16 +4,27 @@ import { supabase } from './supabaseClient';
 
 export const API_URL = (() => {
   const envUrl = import.meta.env.VITE_API_URL;
-  if (!envUrl) {
-    if (typeof window !== 'undefined') {
-      return `${window.location.protocol}//${window.location.hostname}:4000`;
+  
+  // If we have a hardcoded env URL, use it
+  if (envUrl && envUrl !== 'your_api_url_here') {
+    return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
+  }
+
+  // Fallback for local development
+  if (typeof window !== 'undefined') {
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    
+    // If we are on localhost but API is not set, assume port 4000
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return `${protocol}//${hostname}:4000`;
     }
-    return '';
+    
+    // If we are on a production domain, try to guess the backend (usually same domain or standard railway)
+    return `${protocol}//${hostname.replace('frontend', 'backend')}:4000`;
   }
-  if (envUrl === 'http://localhost:4000' && window.location.hostname !== 'localhost') {
-    return `http://${window.location.hostname}:4000`;
-  }
-  return envUrl;
+  
+  return '';
 })();
 
 const base = API_URL;// Configure NProgress
