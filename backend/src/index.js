@@ -1,4 +1,6 @@
 import 'dotenv/config';
+console.log('🚀 [BACKEND] Starting server initialization...');
+console.log('Port from env:', process.env.PORT);
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
@@ -10,7 +12,7 @@ import dayjs from 'dayjs';
 import nodemailer from 'nodemailer';
 
 const {
-  PORT = 4000,
+  PORT = process.env.PORT || 4000,
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_ANON_KEY,
