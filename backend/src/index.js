@@ -74,20 +74,27 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (
+    // Log the origin for debugging (you can remove this later)
+    console.log(`[CORS CHECK] Request from origin: ${origin}`);
+    
+    const isAllowed = 
       !origin || 
       allowedOrigins.includes(origin) || 
       origin.endsWith('.pages.dev') ||
-      origin.startsWith('http://192.168.') || 
-      origin.startsWith('http://10.') || 
-      origin.startsWith('http://localhost:')
-    ) {
+      origin.includes('gradia-flow') || // Extra safety for your project name
+      origin.startsWith('http://localhost:') ||
+      origin.startsWith('http://127.0.0.1:');
+
+    if (isAllowed) {
       callback(null, true);
     } else {
       console.error(`[CORS BLOCK] Origin rejected: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
-  }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json({ limit: '2mb' }));
