@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { API_URL } from '../../lib/api';
 
 const roles = [
@@ -161,13 +160,9 @@ export default function Login() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-brand-600 hover:text-brand-800"
                   >
-                    {showPassword ? (
-                      <EyeSlashIcon className="h-5 w-5" />
-                    ) : (
-                      <EyeIcon className="h-5 w-5" />
-                    )}
+                    {showPassword ? 'HIDE' : 'SHOW'}
                   </button>
                 </div>
               </div>
