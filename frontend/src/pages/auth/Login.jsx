@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, AlertTriangle, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { API_URL } from '../../lib/api';
 
 const roles = [
@@ -116,6 +117,34 @@ export default function Login() {
           <div className="text-2xl font-semibold text-slate-900">GradiaFlow</div>
           <p className="text-sm text-slate-500">Smart School Management Powered by AI</p>
         </div>
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+              >
+                <motion.div 
+                  className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full border border-red-100 text-center"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-100">
+                    <AlertTriangle className="text-red-500" size={32} />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Login Failed</h3>
+                  <p className="text-slate-600 mb-6">{error}</p>
+                  <button
+                    onClick={() => setError(null)}
+                    className="w-full py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-all flex items-center justify-center gap-2"
+                  >
+                    Try Again
+                  </button>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
         <form onSubmit={handleLogin} className="space-y-4">
           {verifyNotice && (
             <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
