@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "set ESBUILD_BINARY_PATH=node_modules\\@esbuild\\win32-x64\\esbuild.exe&& vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint \"src/**/*.{js,jsx}\""
   },
