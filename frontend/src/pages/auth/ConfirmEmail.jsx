@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { API_URL } from '../../lib/api';
 
 export default function ConfirmEmail() {
@@ -12,6 +13,8 @@ export default function ConfirmEmail() {
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [passwordError, setPasswordError] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const token = searchParams.get('token');
   const apiBaseUrl = API_URL;
@@ -203,15 +206,25 @@ export default function ConfirmEmail() {
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Password
               </label>
-              <input
-                type="password"
-                className={`w-full rounded-lg border ${passwordError ? 'border-red-400' : 'border-slate-300'} px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200`}
-                placeholder="Enter a secure password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={confirming}
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  className={`w-full rounded-lg border ${passwordError ? 'border-red-400' : 'border-slate-300'} px-4 py-3 pr-12 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200`}
+                  placeholder="Enter a secure password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={confirming}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               <p className="text-xs text-slate-500 mt-1">At least 6 characters</p>
             </div>
 
@@ -219,15 +232,25 @@ export default function ConfirmEmail() {
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Confirm Password
               </label>
-              <input
-                type="password"
-                className={`w-full rounded-lg border ${passwordError ? 'border-red-400' : 'border-slate-300'} px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200`}
-                placeholder="Confirm your password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                disabled={confirming}
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  className={`w-full rounded-lg border ${passwordError ? 'border-red-400' : 'border-slate-300'} px-4 py-3 pr-12 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200`}
+                  placeholder="Confirm your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={confirming}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 transition-colors"
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             {passwordError && (
@@ -250,65 +273,6 @@ export default function ConfirmEmail() {
               {confirming ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Setting up account...
-                </>
-              ) : (
-                'Complete Setup'
-              )}
-            </button>
-          </form>
-
-          <p className="text-xs text-center text-slate-500 mt-6">
-            Don't have a confirmation link?{' '}
-            <Link to="/register" className="text-blue-600 hover:underline font-medium">
-              Register again
-            </Link>
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-}
-
-  return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-      <div className="bg-white shadow-card rounded-2xl w-full max-w-lg p-8 border border-slate-100">
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <div className="text-2xl font-semibold text-slate-900">Create Your Password</div>
-          <p className="text-sm text-slate-500 mt-2">Secure your GradiaFlow account</p>
-        </div>
-
-        <form onSubmit={handleConfirm} className="space-y-4">
-          <div>
-            <label className="text-sm text-slate-600">Password</label>
-            <input
-              type="password"
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:border-brand-400"
-              placeholder="Enter a strong password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-            />
-            <p className="mt-1 text-xs text-slate-500">
-              Must be at least 6 characters
-            </p>
-          </div>
-
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-xs text-blue-800">
-              <strong>Tip:</strong> Use a combination of uppercase, lowercase, numbers, and symbols for a strong password.
-            </p>
-          </div>
-
-          {error && (
             <div className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-3">
               {error}
             </div>
