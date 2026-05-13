@@ -26,6 +26,7 @@ const {
   SMTP_PORT,
   SMTP_USER,
   SMTP_PASS,
+  BREVO_API_KEY,
   RECEIVER_EMAIL,
   FRONTEND_URL = 'https://gradiaflow.com',
   APP_DOMAIN = 'gradiaflow.com',
@@ -98,6 +99,43 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '2mb' }));
+
+// ===== Email Helper (Brevo API) =====
+async function sendEmail({ to, subject, html, text, replyTo }) {
+  if (!BREVO_API_KEY) {
+    console.error('[EMAIL ERROR] BREVO_API_KEY is missing');
+    throw new Error('Email service not configured (API Key missing)');
+  }
+
+  const payload = {
+    sender: { name: EMAIL_FROM_NAME, email: EMAIL_FROM_ADDRESS || SMTP_USER },
+    to: [{ email: to }],
+    subject: subject,
+    htmlContent: html,
+    textContent: text
+  };
+
+  if (replyTo) {
+    payload.replyTo = { email: replyTo };
+  }
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'api-key': BREVO_API_KEY,
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    console.error('[BREVO API ERROR]', data);
+    throw new Error(data.message || 'Failed to send email via Brevo API');
+  }
+  return data;
+}
 app.use(morgan('tiny'));
 app.use((req, res, next) => {
   console.log(`[BACKEND] ${req.method} ${req.path}`);
@@ -1806,82 +1844,29 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
     const htmlContent = createEmailTemplate(normalizedSchoolName, confirmationUrl, normalizedName);
     const textContent = createPlainTextConfirmation(normalizedSchoolName, confirmationUrl, normalizedName);
 
-    console.log(`[EMAIL] Creating transporter with SMTP_HOST=${SMTP_HOST}, SMTP_PORT=${SMTP_PORT}`);
-
-    const transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: Number(SMTP_PORT) || 587,
-      secure: Number(SMTP_PORT) === 465,
-      auth: {
-        user: SMTP_USER,
-        pass: SMTP_PASS
-      }
-    });
-
     try {
-      console.log(`[EMAIL] Sending confirmation email to ${normalizedEmail} for school ${normalizedSchoolName}`);
-      const mailResponse = await transporter.sendMail({
-        from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM_ADDRESS || SMTP_USER}>`,
-        replyTo: EMAIL_FROM_ADDRESS || SMTP_USER,
+      console.log(`[EMAIL] Sending confirmation email to ${normalizedEmail} via Brevo API`);
+      const mailResponse = await sendEmail({
         to: normalizedEmail,
         subject: `Confirm Your Email - GradiaFlow`,
         text: textContent,
-        html: htmlContent
+        html: htmlContent,
+        replyTo: EMAIL_FROM_ADDRESS || SMTP_USER
       });
       console.log(`[EMAIL] Email sent successfully to ${normalizedEmail}`, { messageId: mailResponse?.messageId });
     } catch (mailErr) {
-      const message = String(mailErr?.message || '').toLowerCase();
       console.error('[EMAIL SEND ERROR]', {
         email: normalizedEmail,
-        error: mailErr.message,
-        code: mailErr.code
+        error: mailErr.message
       });
       
-      // Handle Gmail rate limiting
-      if (message.includes('rate limit') || message.includes('too many') || message.includes('429')) {
-        // If token already exists, suggest using the existing one
-        if (existingToken) {
-          console.log(`[EMAIL] Rate limit hit, but token exists for ${normalizedEmail}`);
-          return res.json({
-            ok: true,
-            reused: true,
-            message: 'Email service is temporarily rate limited. Please use the confirmation email already in your inbox (may take a few minutes to arrive).'
-          });
-        }
-        console.log(`[EMAIL] Rate limit hit for ${normalizedEmail}`);
-        return res.status(429).json({ 
-          error: 'Too many emails sent. Please try again in a few minutes.' 
-        });
-      }
-      
-      // Handle authentication errors
-      if (message.includes('invalid login') || message.includes('authentication') || message.includes('unauthorized')) {
-        console.error('[SMTP AUTH ERROR]', {
-          smtp_host: SMTP_HOST,
-          smtp_port: SMTP_PORT,
-          smtp_user: SMTP_USER,
-          error_msg: mailErr.message,
-          solution: 'Check if Brevo SMTP credentials are correct. Go to https://app.brevo.com/settings/keys-api'
-        });
+      const message = mailErr.message.toLowerCase();
+      // Handle authentication/configuration errors specifically
+      if (message.includes('unauthorized') || message.includes('key')) {
         return res.status(500).json({ 
           ok: false,
-          error: 'SMTP Authentication Failed: Invalid credentials. Please check your Brevo API keys at https://app.brevo.com/settings/keys-api',
-          details: {
-            code: 'AUTH_FAILED',
-            smtp_host: SMTP_HOST,
-            smtp_user: SMTP_USER
-          }
-        });
-      }
-      
-      // Handle connection errors
-      if (message.includes('econnrefused') || message.includes('timeout') || message.includes('enotfound')) {
-        console.error('[SMTP CONNECTION ERROR]', {
-          smtp_host: SMTP_HOST,
-          message: 'Cannot connect to SMTP server'
-        });
-        return res.status(500).json({ 
-          error: 'Email service is unavailable. Please try again later.' 
+          error: 'Email Service Configuration Error: The Brevo API key is invalid or blocked by IP whitelisting.',
+          details: { code: 'AUTH_FAILED' }
         });
       }
       
@@ -2047,96 +2032,33 @@ app.post('/api/public/auth/test-email', async (req, res) => {
 
     console.log('[TEST EMAIL] Starting email test to', email);
 
-    const transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: Number(SMTP_PORT) || 587,
-      secure: Number(SMTP_PORT) === 465,
-      auth: {
-        user: SMTP_USER,
-        pass: SMTP_PASS
-      }
-    });
-
     try {
-      console.log('[TEST EMAIL] Testing connection to SMTP server...');
-      await transporter.verify();
-      console.log('[TEST EMAIL] SMTP connection verified');
-
-      const testHTML = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
-            <h1 style="margin: 0;">GradiaFlow Email Test</h1>
-          </div>
-          <div style="padding: 30px; background: white; border-radius: 0 0 8px 8px; border: 1px solid #e0e0e0;">
-            <p style="margin-top: 0;">Hello,</p>
-            <p>This is a test email to verify that Brevo SMTP is working correctly.</p>
-            <p><strong>Test Details:</strong></p>
-            <ul>
-              <li>To: ${email}</li>
-              <li>From: ${EMAIL_FROM_ADDRESS || SMTP_USER}</li>
-              <li>SMTP Host: ${SMTP_HOST}</li>
-              <li>SMTP Port: ${SMTP_PORT}</li>
-              <li>Timestamp: ${new Date().toISOString()}</li>
-            </ul>
-            <p style="color: #667eea; font-weight: bold;">✓ Email delivery is working!</p>
-          </div>
-        </div>
-      `;
-
-      const testText = `
-GradiaFlow Email Test
-
-This is a test email to verify that Brevo SMTP is working correctly.
-
-Test Details:
-- To: ${email}
-- From: ${EMAIL_FROM_ADDRESS || SMTP_USER}
-- SMTP Host: ${SMTP_HOST}
-- SMTP Port: ${SMTP_PORT}
-- Timestamp: ${new Date().toISOString()}
-
-✓ Email delivery is working!
-      `.trim();
-
-      console.log('[TEST EMAIL] Sending test email...');
-      const info = await transporter.sendMail({
-        from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM_ADDRESS || SMTP_USER}>`,
-        replyTo: EMAIL_FROM_ADDRESS || SMTP_USER,
+      console.log('[TEST EMAIL] Sending test email via Brevo API...');
+      const info = await sendEmail({
         to: email,
-        subject: '✓ GradiaFlow Email Test - Brevo SMTP Working',
+        subject: '✓ GradiaFlow Email Test - Brevo API Working',
         text: testText,
-        html: testHTML
+        html: testHTML,
+        replyTo: EMAIL_FROM_ADDRESS || SMTP_USER
       });
 
-      console.log('[TEST EMAIL] Email sent successfully', {
-        messageId: info.messageId,
-        response: info.response
-      });
+      console.log('[TEST EMAIL] Email sent successfully', { messageId: info.messageId });
 
       return res.json({
         ok: true,
-        message: 'Test email sent successfully!',
+        message: 'Test email sent successfully via API!',
         details: {
           email,
-          smtpHost: SMTP_HOST,
-          smtpPort: SMTP_PORT,
           messageId: info.messageId,
           timestamp: new Date().toISOString()
         }
       });
     } catch (mailErr) {
-      console.error('[TEST EMAIL] Sending failed', {
-        error: mailErr.message,
-        code: mailErr.code
-      });
+      console.error('[TEST EMAIL] Sending failed', { error: mailErr.message });
       return res.status(500).json({
         ok: false,
         error: mailErr.message,
-        details: {
-          smtpHost: SMTP_HOST,
-          smtpPort: SMTP_PORT,
-          smtpUser: SMTP_USER
-        }
+        details: { provider: 'Brevo API' }
       });
     }
   } catch (err) {
@@ -2324,24 +2246,14 @@ app.post('/api/public/auth/request-password-reset', async (req, res) => {
     const htmlContent = createPasswordResetTemplate(resetUrl, normalizedEmail);
     const textContent = createPlainTextPasswordReset(resetUrl, normalizedEmail);
 
-    const transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: Number(SMTP_PORT) || 587,
-      secure: Number(SMTP_PORT) === 465,
-      auth: {
-        user: SMTP_USER,
-        pass: SMTP_PASS
-      }
-    });
-
     try {
-      await transporter.sendMail({
-        from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM_ADDRESS || SMTP_USER}>`,
-        replyTo: EMAIL_FROM_ADDRESS || SMTP_USER,
+      console.log(`[PASSWORD RESET] Sending reset email to ${normalizedEmail} via Brevo API`);
+      await sendEmail({
         to: normalizedEmail,
         subject: 'Reset Your GradiaFlow Password',
         text: textContent,
-        html: htmlContent
+        html: htmlContent,
+        replyTo: EMAIL_FROM_ADDRESS || SMTP_USER
       });
       console.log(`[PASSWORD RESET] Reset email sent to ${normalizedEmail}`);
     } catch (mailErr) {
