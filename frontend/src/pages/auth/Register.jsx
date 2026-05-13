@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Link, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { API_URL } from '../../lib/api';
 const roles = [
   { value: 'school_admin', label: 'School Admin' },
@@ -24,6 +25,7 @@ export default function Register() {
   const [teacherCode, setTeacherCode] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [showVerificationSent, setShowVerificationSent] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState('');
   const [verificationMessage, setVerificationMessage] = useState('');
@@ -393,13 +395,22 @@ export default function Register() {
             {role === 'school_admin' ? (
               <div>
                 <label className="text-sm text-slate-600">Password</label>
-                <input
-                  type="password"
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:border-brand-400"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 focus:outline-none focus:border-brand-400"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
