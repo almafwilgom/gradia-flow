@@ -1791,15 +1791,10 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
       }
     }
 
-    const { data: existingUserPage, error: existingUserErr } = await supabaseService.auth.admin.listUsers();
-    if (existingUserErr) {
-      console.error(`[EMAIL] Error listing users: ${existingUserErr.message}`);
-      return res.status(500).json({ error: existingUserErr.message });
-    }
-    const alreadyRegistered = existingUserPage?.users?.some(
-      (user) => String(user.email || '').toLowerCase() === normalizedEmail
-    );
-    if (alreadyRegistered) {
+    // Check if user already exists in auth
+    const { data: userData, error: userLookupErr } = await supabaseService.auth.admin.getUserByEmail(normalizedEmail);
+    
+    if (!userLookupErr && userData?.user) {
       console.log(`[EMAIL] Email already registered: ${normalizedEmail}`);
       return res.status(400).json({ error: 'This email is already registered. Please sign in instead.' });
     }
@@ -1819,7 +1814,7 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
       secure: Number(SMTP_PORT) === 465,
       auth: {
         user: SMTP_USER,
-        pass: SMTP_PASS ? '***' : 'NOT_SET'
+        pass: SMTP_PASS
       }
     });
 
@@ -2265,7 +2260,7 @@ app.post('/api/public/auth/request-password-reset', async (req, res) => {
     // Find user by email
     const { data: user, error: userErr } = await supabaseService
       .from('profiles')
-      .select('id, email, full_name')
+      .select('id, email, full_name, role')
       .eq('email', normalizedEmail)
       .maybeSingle();
 

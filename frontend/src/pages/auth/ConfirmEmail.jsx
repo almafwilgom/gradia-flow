@@ -273,19 +273,13 @@ export default function ConfirmEmail() {
               {confirming ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            <div className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-3">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={confirming}
-            className="w-full rounded-lg bg-brand-600 text-white py-2 font-semibold hover:bg-brand-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {confirming ? 'Confirming...' : 'Confirm & Create Account'}
-          </button>
-        </form>
+                  <span>Confirming...</span>
+                </>
+              ) : (
+                'Confirm & Create Account'
+              )}
+            </button>
+          </form>
 
         <p className="mt-4 text-xs text-center text-slate-500">
           Your email has been verified. Create a password to complete registration.
