@@ -38,10 +38,12 @@ const invalidEnv =
   SUPABASE_URL === 'https://your-project.supabase.co';
 
 if (invalidEnv) {
-  // eslint-disable-next-line no-console
-  console.error(
-    'Invalid backend Supabase env vars. Set real SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in backend/.env before starting the server.'
-  );
+  console.error('❌ [BACKEND CRASH] Missing or invalid Supabase environment variables!');
+  console.error('Check your Railway dashboard to ensure these are set:');
+  console.error('- SUPABASE_URL');
+  console.error('- SUPABASE_SERVICE_ROLE_KEY');
+  // In production, we don't want to exit immediately if possible, 
+  // but here it's better than running with broken auth.
   process.exit(1);
 }
 
@@ -50,6 +52,15 @@ const supabaseAnon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY || SUPABASE_SE
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 const app = express();
+
+// 1. Health Check (Must be before CORS and Auth)
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    env: process.env.NODE_ENV || 'development'
+  });
+});
 
 const allowedOrigins = [
   'http://localhost:5173',
