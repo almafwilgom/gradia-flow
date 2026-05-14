@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, School, UserCircle, Mail, Lock, ArrowRight, CheckCircle2, ChevronRight, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, X, School, UserCircle, Mail, Lock, ArrowRight, CheckCircle2, ChevronRight, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { API_URL } from '../../lib/api';
+
 
 const roles = [
   { value: 'school_admin', label: 'School Admin', description: 'Register a new school' },
