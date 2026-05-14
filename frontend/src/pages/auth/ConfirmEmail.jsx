@@ -287,4 +287,7 @@ export default function ConfirmEmail() {
       </div>
     </div>
   );
+  }
+
+  return null;
 }
