@@ -161,6 +161,9 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAu
                   <div className="space-y-2">
                     <div className="flex justify-between items-center px-1">
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Password</label>
+                      <a href="/auth/forgot-password" onClick={onClose} className="text-xs font-bold text-brand-600 hover:text-brand-700 hover:underline">
+                        Forgot Password?
+                      </a>
                     </div>
                     <div className="relative group">
                       <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-500 transition-colors">
