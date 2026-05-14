@@ -1147,6 +1147,8 @@ app.delete('/api/admin/schools/:schoolId', requireAuth, async (req, res) => {
     }
 
     const { schoolId } = req.params;
+
+    // Step 1: Collect all Auth user IDs linked to this school BEFORE deleting anything
     const { data: members, error: memberErr } = await supabaseService
       .from('profiles')
       .select('id')
@@ -1154,17 +1156,40 @@ app.delete('/api/admin/schools/:schoolId', requireAuth, async (req, res) => {
 
     if (memberErr) return res.status(400).json({ error: memberErr.message });
 
-    for (const member of members ?? []) {
-      const { error: deleteUserErr } = await supabaseService.auth.admin.deleteUser(member.id);
-      if (deleteUserErr) {
-        return res.status(400).json({ error: `Failed to delete school user ${member.id}: ${deleteUserErr.message}` });
+    const memberIds = (members ?? []).map((m) => m.id);
+
+    // Step 2: Delete the school record first — DB cascades will clean up
+    // related tables (students, classes, teachers, etc.) automatically.
+    const { error: deleteSchoolErr } = await supabaseService
+      .from('schools')
+      .delete()
+      .eq('id', schoolId);
+
+    if (deleteSchoolErr) {
+      return res.status(400).json({ error: deleteSchoolErr.message });
+    }
+
+    // Step 3: Delete Auth users. Continue on individual failures so a
+    // single broken account never blocks the rest of the cleanup.
+    const authErrors = [];
+    for (const userId of memberIds) {
+      try {
+        const { error: deleteUserErr } = await supabaseService.auth.admin.deleteUser(userId);
+        if (deleteUserErr) {
+          console.warn(`[DELETE SCHOOL] Could not delete auth user ${userId}: ${deleteUserErr.message}`);
+          authErrors.push({ userId, message: deleteUserErr.message });
+        }
+      } catch (userErr) {
+        console.warn(`[DELETE SCHOOL] Exception deleting auth user ${userId}:`, userErr.message);
+        authErrors.push({ userId, message: userErr.message });
       }
     }
 
-    const { error: deleteSchoolErr } = await supabaseService.from('schools').delete().eq('id', schoolId);
-    if (deleteSchoolErr) return res.status(400).json({ error: deleteSchoolErr.message });
-
-    return res.json({ ok: true, deleted_users: members?.length ?? 0 });
+    return res.json({
+      ok: true,
+      deleted_users: memberIds.length - authErrors.length,
+      auth_errors: authErrors.length > 0 ? authErrors : undefined
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
