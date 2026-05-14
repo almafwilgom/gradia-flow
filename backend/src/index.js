@@ -2197,8 +2197,8 @@ app.post('/api/public/auth/request-password-reset', async (req, res) => {
       return res.status(400).json({ error: 'Email is required' });
     }
 
-    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-      return res.status(500).json({ error: 'Email service not configured' });
+    if (!BREVO_API_KEY) {
+      return res.status(500).json({ error: 'Email service not configured (BREVO_API_KEY missing)' });
     }
 
     const normalizedEmail = String(email).toLowerCase().trim();
