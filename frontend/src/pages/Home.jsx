@@ -1,8 +1,25 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import AuthModal from '../components/AuthModal';
 
 export default function Home() {
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const handleAuthSuccess = () => {
+    setIsAuthModalOpen(false);
+    navigate('/dashboard');
+  };
+
   return (
     <div className="pt-20">
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)} 
+        initialMode="register"
+        onAuthSuccess={handleAuthSuccess}
+      />
+      
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-white py-24 sm:py-32">
         <div className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80">
@@ -24,14 +41,18 @@ export default function Home() {
               GradiaFlow is the all-in-one platform for African schools. Manage students, staff, results, and finances with ease. Powered by AI and designed for excellence across the continent.
             </p>
             <div className="mt-10 flex items-center justify-center gap-x-6">
-              <Link to="/register" className="rounded-xl bg-brand-600 px-8 py-4 text-sm font-semibold text-white shadow-xl hover:bg-brand-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 transition-all">
+              <button 
+                onClick={() => setIsAuthModalOpen(true)}
+                className="rounded-xl bg-brand-600 px-8 py-4 text-sm font-semibold text-white shadow-xl hover:bg-brand-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 transition-all active:scale-95"
+              >
                 Start Your Free Trial
-              </Link>
+              </button>
               <Link to="/about" className="text-sm font-semibold leading-6 text-slate-900 flex items-center gap-1 group">
                 Learn more <span className="group-hover:translate-x-1 transition-transform">→</span>
               </Link>
             </div>
           </div>
+
           
           <div className="mt-16 flow-root sm:mt-24">
             <div className="-m-2 rounded-xl bg-slate-900/5 p-2 ring-1 ring-inset ring-slate-900/10 lg:-m-4 lg:rounded-2xl lg:p-4">

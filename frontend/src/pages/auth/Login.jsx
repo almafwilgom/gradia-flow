@@ -25,6 +25,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const params = new URLSearchParams(location.search);
+  const [showVerifyModal, setShowVerifyModal] = useState(params.get('verify') === '1');
   const verifyNotice = params.get('verify') === '1';
   const apiBaseUrl = API_URL;
 
@@ -194,12 +195,51 @@ export default function Login() {
             </AnimatePresence>
 
             <form onSubmit={handleLogin} className="space-y-6">
-              {verifyNotice && (
-                <div className="rounded-2xl bg-amber-50 border border-amber-100 p-4 text-sm text-amber-800 flex items-start gap-3">
-                  <Mail className="mt-0.5" size={18} />
-                  <p>Check your email to verify your account, then sign in below.</p>
-                </div>
-              )}
+              <AnimatePresence>
+                {showVerifyModal && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+                  >
+                    <motion.div
+                      initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                      animate={{ scale: 1, opacity: 1, y: 0 }}
+                      exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                      className="bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl border border-slate-100 text-center relative overflow-hidden"
+                    >
+                      {/* Decorative Background */}
+                      <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-brand-500 to-indigo-600"></div>
+                      
+                      <div className="w-20 h-20 bg-brand-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Mail className="text-brand-600" size={36} />
+                      </div>
+                      
+                      <h3 className="text-2xl font-bold text-slate-900 mb-3">Check Your Email</h3>
+                      <p className="text-slate-600 mb-8 leading-relaxed">
+                        We've sent a verification link to your email address. Please click the link to activate your account before signing in.
+                      </p>
+                      
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowVerifyModal(false);
+                          // Clean up URL
+                          navigate('/login', { replace: true });
+                        }}
+                        className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl transition-all shadow-lg active:scale-[0.98]"
+                      >
+                        Got it, thanks!
+                      </button>
+                      
+                      <p className="mt-6 text-xs text-slate-400">
+                        Didn't receive it? Check your spam folder.
+                      </p>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700 block ml-1">Login Type</label>

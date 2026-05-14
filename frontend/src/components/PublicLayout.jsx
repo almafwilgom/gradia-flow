@@ -1,9 +1,13 @@
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import AuthModal from './AuthModal';
 
 export default function PublicLayout() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState('login');
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -13,8 +17,27 @@ export default function PublicLayout() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const openAuth = (mode) => {
+    setAuthMode(mode);
+    setIsAuthModalOpen(true);
+    setIsMenuOpen(false);
+  };
+
+  const handleAuthSuccess = (type) => {
+    setIsAuthModalOpen(false);
+    navigate('/dashboard');
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)} 
+        initialMode={authMode}
+        onAuthSuccess={handleAuthSuccess}
+      />
+
       {/* Header */}
       <header 
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
@@ -44,10 +67,18 @@ export default function PublicLayout() {
 
           <div className="flex items-center gap-2 sm:gap-4">
             <div className="hidden sm:flex items-center gap-4">
-              <Link to="/login" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Login</Link>
-              <Link to="/register" className="bg-brand-500 text-white px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-brand-600 transition-all shadow-lg shadow-brand-500/30 border border-brand-400/50">
+              <button 
+                onClick={() => openAuth('login')} 
+                className="text-sm font-medium text-slate-300 hover:text-white transition-colors"
+              >
+                Login
+              </button>
+              <button 
+                onClick={() => openAuth('register')}
+                className="bg-brand-500 text-white px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-brand-600 transition-all shadow-lg shadow-brand-500/30 border border-brand-400/50"
+              >
                 Get Started
-              </Link>
+              </button>
             </div>
 
             {/* Mobile Menu Toggle */}
@@ -76,10 +107,18 @@ export default function PublicLayout() {
             <Link to="/services" onClick={() => setIsMenuOpen(false)} className="text-lg font-semibold text-slate-800 hover:text-brand-600 p-2 rounded-lg hover:bg-slate-50 transition-all">Services</Link>
             <Link to="/contact" onClick={() => setIsMenuOpen(false)} className="text-lg font-semibold text-slate-800 hover:text-brand-600 p-2 rounded-lg hover:bg-slate-50 transition-all">Contact</Link>
             <div className="h-px bg-slate-100 my-2"></div>
-            <Link to="/login" onClick={() => setIsMenuOpen(false)} className="text-lg font-semibold text-slate-800 hover:text-brand-600 p-2">Login</Link>
-            <Link to="/register" onClick={() => setIsMenuOpen(false)} className="bg-brand-600 text-white text-center py-4 rounded-xl font-bold shadow-lg shadow-brand-200 mt-2">
+            <button 
+              onClick={() => openAuth('login')} 
+              className="text-left text-lg font-semibold text-slate-800 hover:text-brand-600 p-2"
+            >
+              Login
+            </button>
+            <button 
+              onClick={() => openAuth('register')}
+              className="bg-brand-600 text-white text-center py-4 rounded-xl font-bold shadow-lg shadow-brand-200 mt-2"
+            >
               Get Started Free
-            </Link>
+            </button>
           </nav>
         </div>
       </header>
@@ -145,3 +184,4 @@ export default function PublicLayout() {
     </div>
   );
 }
+
