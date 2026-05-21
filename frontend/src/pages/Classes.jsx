@@ -15,6 +15,8 @@ import {
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import { SimpleTable } from '../components/SimpleTable';
+import { useActionModal } from '../hooks/useActionModal';
+import { ActionModalRenderer } from '../components/ActionModals';
 
 const SCHOOL_SECTIONS = [
   { value: 'nursery', label: 'Nursery' },
@@ -154,6 +156,7 @@ export default function Classes() {
   const [fees, setFees] = useState([]);
   const [error, setError] = useState(null);
   const [info, setInfo] = useState('');
+  const modals = useActionModal();
 
   const [classForm, setClassForm] = useState({ name: '', level: 'nursery', fee: 0 });
   const [streamForm, setStreamForm] = useState({ class_id: '', name: '' });
@@ -443,26 +446,36 @@ export default function Classes() {
       setError('Teachers cannot remove subjects.');
       return;
     }
-    const confirmed = window.confirm(
-      `Remove ${subjectName}? Any saved results for this subject will also be removed for affected students.`
+    modals.confirm.show(
+      'Remove subject?',
+      `Remove ${subjectName} from this class?`,
+      'Any saved results for this subject will also be removed for affected students.',
+      async () => {
+        modals.confirm.setLoading(true);
+        setError(null);
+        setInfo('');
+        try {
+          const { error: deleteErr } = await supabase.from('subjects').delete().eq('id', subjectId);
+          if (deleteErr) throw deleteErr;
+          setInfo(`${subjectName} removed successfully.`);
+          modals.confirm.close();
+          modals.success.show(`${subjectName} removed successfully.`);
+          await load();
+        } catch (err) {
+          setError(err.message);
+          modals.error.show('Remove failed', err.message);
+        } finally {
+          modals.confirm.setLoading(false);
+        }
+      },
+      { confirmText: 'Remove', isDangerous: true }
     );
-    if (!confirmed) return;
-
-    setError(null);
-    setInfo('');
-    try {
-      const { error: deleteErr } = await supabase.from('subjects').delete().eq('id', subjectId);
-      if (deleteErr) throw deleteErr;
-      setInfo(`${subjectName} removed successfully.`);
-      await load();
-    } catch (err) {
-      setError(err.message);
-    }
   };
 
   if (selectedClass) {
     return (
       <div className="space-y-6">
+        <ActionModalRenderer modals={modals} />
         <div className="flex items-center gap-4">
           <button 
             onClick={() => setSelectedClass(null)}
@@ -545,6 +558,7 @@ export default function Classes() {
 
   return (
     <div className="space-y-6">
+      <ActionModalRenderer modals={modals} />
       <div>
         <h1 className="text-xl font-semibold">Classes & Subjects</h1>
         <p className="text-sm text-slate-500">

@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../hooks/useAuth';
 import { SimpleTable } from '../components/SimpleTable';
 import { apiFetch } from '../lib/api';
+import { useActionModal } from '../hooks/useActionModal';
+import { ActionModalRenderer } from '../components/ActionModals';
 
 const SCHOOL_SECTIONS = [
   { value: 'nursery', label: 'Nursery' },
@@ -36,6 +38,7 @@ export default function Staff() {
   const [error, setError] = useState(null);
   const [inviteResult, setInviteResult] = useState(null);
   const [loading, setLoading] = useState(true);
+  const modals = useActionModal();
 
   const load = async () => {
     setLoading(true);
@@ -122,9 +125,10 @@ export default function Staff() {
         .update({ class_id: newClassId })
         .eq('id', staffId);
       if (updateErr) throw updateErr;
+      modals.success.show('Class assignment updated.');
       load();
     } catch (err) {
-      alert(err.message);
+      modals.error.show('Update failed', err.message);
     }
   };
 
@@ -136,29 +140,42 @@ export default function Staff() {
         .update({ status: newStatus })
         .eq('id', staffId);
       if (updateErr) throw updateErr;
+      modals.success.show(newStatus === 'disabled' ? 'Staff member disabled.' : 'Staff member enabled.');
       load();
     } catch (err) {
-      alert(err.message);
+      modals.error.show('Status update failed', err.message);
     }
   };
 
   const deleteStaff = async (staffId, name) => {
-    if (!window.confirm(`Are you sure you want to delete ${name}? This will remove their teacher record and access.`)) return;
-    try {
-      // First delete from teachers
-      const { error: deleteErr } = await supabase
-        .from('teachers')
-        .delete()
-        .eq('id', staffId);
-      if (deleteErr) throw deleteErr;
-      load();
-    } catch (err) {
-      alert(err.message);
-    }
+    modals.confirm.show(
+      'Delete staff member?',
+      `This will remove ${name || 'this staff member'} from your staff list.`,
+      'Their teacher record and access link will be removed.',
+      async () => {
+        modals.confirm.setLoading(true);
+        try {
+          const { error: deleteErr } = await supabase
+            .from('teachers')
+            .delete()
+            .eq('id', staffId);
+          if (deleteErr) throw deleteErr;
+          modals.confirm.close();
+          modals.success.show('Staff member deleted successfully.');
+          load();
+        } catch (err) {
+          modals.error.show('Delete failed', err.message);
+        } finally {
+          modals.confirm.setLoading(false);
+        }
+      },
+      { confirmText: 'Delete', isDangerous: true }
+    );
   };
 
   return (
     <div className="space-y-4">
+      <ActionModalRenderer modals={modals} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Staff</h1>

@@ -7,6 +7,8 @@ import Card from '../components/Card';
 import StatusBadge from '../components/StatusBadge';
 import Table from '../components/Table';
 import Tabs from '../components/Tabs';
+import { useActionModal } from '../hooks/useActionModal';
+import { ActionModalRenderer } from '../components/ActionModals';
 
 function deriveSchoolStatus(school) {
   if (school?.status === 'disabled' || school?.disabled_at) return 'disabled';
@@ -25,6 +27,7 @@ export default function SchoolDetails() {
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
+  const modals = useActionModal();
 
   useEffect(() => {
     if (schoolId) fetchData();
@@ -54,20 +57,27 @@ export default function SchoolDetails() {
   };
 
   const handleResetClasses = async () => {
-    if (!window.confirm('This will DELETE all current classes for this school and replace them with a standard set (Nursery to SSS). Are you sure?')) {
-      return;
-    }
-
-    try {
-      setResetting(true);
-      await apiFetch(`/api/admin/schools/${schoolId}/reset-classes`, { method: 'POST' });
-      await fetchData();
-      alert('Classes have been reset and seeded successfully.');
-    } catch (err) {
-      alert(err.message || 'Failed to reset classes.');
-    } finally {
-      setResetting(false);
-    }
+    modals.confirm.show(
+      'Reset classes?',
+      'This will delete all current classes for this school and replace them with the standard Nursery to SSS set.',
+      'Existing custom classes will be removed before the standard class list is seeded.',
+      async () => {
+        modals.confirm.setLoading(true);
+        try {
+          setResetting(true);
+          await apiFetch(`/api/admin/schools/${schoolId}/reset-classes`, { method: 'POST' });
+          await fetchData();
+          modals.confirm.close();
+          modals.success.show('Classes have been reset and seeded successfully.');
+        } catch (err) {
+          modals.error.show('Reset failed', err.message || 'Failed to reset classes.');
+        } finally {
+          setResetting(false);
+          modals.confirm.setLoading(false);
+        }
+      },
+      { confirmText: 'Reset', isDangerous: true }
+    );
   };
 
   if (loading) {
@@ -259,6 +269,7 @@ export default function SchoolDetails() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
+      <ActionModalRenderer modals={modals} />
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">{school.name}</h1>

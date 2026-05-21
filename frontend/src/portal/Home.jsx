@@ -163,11 +163,11 @@ export default function PortalHome() {
     <div className="w-full max-w-7xl mx-auto space-y-5 pb-8">
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-5 items-start">
         <div className="space-y-5">
-          <div className="bg-white rounded-[2rem] border border-slate-100 shadow-soft overflow-hidden">
-            <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-4 border-b border-slate-100 gap-4">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-[2rem] border border-blue-500 shadow-lg overflow-hidden">
+            <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-6 gap-4">
               <div className="flex items-center gap-3 w-full sm:w-auto">
                 <div className="relative group shrink-0">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center text-slate-500 font-semibold border-2 border-white shadow-sm">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/30 backdrop-blur overflow-hidden flex items-center justify-center text-white font-semibold border-2 border-white shadow-sm">
                     {profile?.avatar_url ? (
                       <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
@@ -227,27 +227,27 @@ export default function PortalHome() {
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 truncate">
+                    <h1 className="text-xl sm:text-2xl font-semibold text-white truncate">
                       {selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : 'Portal'}
                     </h1>
-                    <ChevronDownIcon className="w-5 h-5 text-slate-400 shrink-0" />
+                    <ChevronDownIcon className="w-5 h-5 text-blue-100 shrink-0" />
                   </div>
-                  <p className="text-sm text-slate-500 truncate">
+                  <p className="text-sm text-blue-100 truncate">
                     {selectedStudent?.classes?.name ?? 'No class assigned'}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-4 w-full sm:w-auto justify-end border-t sm:border-0 pt-4 sm:pt-0">
-                <BellIcon className="w-6 h-6 text-slate-400" />
+              <div className="flex items-center gap-4 w-full sm:w-auto justify-end">
+                <BellIcon className="w-6 h-6 text-white" />
               </div>
             </div>
 
             {isParent && children.length > 1 && (
-              <div className="px-5 pt-4">
+              <div className="px-5 pb-4">
                 <select
                   value={selectedStudentId}
                   onChange={(e) => setSelectedStudentId(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
+                  className="w-full rounded-2xl border border-blue-300 bg-white/10 backdrop-blur px-4 py-3 text-sm text-white placeholder-blue-100"
                 >
                   {children.map((child) => (
                     <option key={child.id} value={child.id}>

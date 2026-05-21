@@ -4,6 +4,8 @@ import { useAuth } from '../hooks/useAuth';
 import { SimpleTable } from '../components/SimpleTable';
 import { FileUpload } from '../components/FileUpload';
 import { apiFetch } from '../lib/api';
+import { useActionModal } from '../hooks/useActionModal';
+import { ActionModalRenderer } from '../components/ActionModals';
 
 export default function Payments() {
   const { profile, session } = useAuth();
@@ -12,6 +14,7 @@ export default function Payments() {
   const [students, setStudents] = useState([]);
   const [proofFile, setProofFile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const modals = useActionModal();
 
   const load = async () => {
     const { data } = await supabase
@@ -79,22 +82,44 @@ export default function Payments() {
       }
       setForm({ student_id: '', amount: '', method: 'manual', reference: '' });
       setProofFile(null);
+      modals.success.show('Payment submitted successfully.');
       load();
     } catch (err) {
-      // eslint-disable-next-line no-alert
-      alert(err.message);
+      modals.error.show('Payment failed', err.message);
     } finally {
       setLoading(false);
     }
   };
 
   const approve = async (id) => {
-    await supabase.from('payments').update({ status: 'approved', approved_by: profile.id }).eq('id', id);
-    load();
+    modals.confirm.show(
+      'Approve payment?',
+      'This will mark the selected payment as approved.',
+      'Approved payments may unlock related student records or results.',
+      async () => {
+        modals.confirm.setLoading(true);
+        try {
+          const { error } = await supabase
+            .from('payments')
+            .update({ status: 'approved', approved_by: profile.id })
+            .eq('id', id);
+          if (error) throw error;
+          modals.confirm.close();
+          modals.success.show('Payment approved successfully.');
+          load();
+        } catch (err) {
+          modals.error.show('Approval failed', err.message);
+        } finally {
+          modals.confirm.setLoading(false);
+        }
+      },
+      { confirmText: 'Approve' }
+    );
   };
 
   return (
     <div className="space-y-4">
+      <ActionModalRenderer modals={modals} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Payments</h1>

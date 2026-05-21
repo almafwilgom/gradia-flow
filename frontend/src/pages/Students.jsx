@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabaseClient';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
 import { SimpleTable } from '../components/SimpleTable';
+import { useActionModal } from '../hooks/useActionModal';
+import { ActionModalRenderer } from '../components/ActionModals';
 
 const SCHOOL_SECTIONS = [
   { value: 'nursery', label: 'Nursery' },
@@ -59,6 +61,7 @@ export default function Students() {
   const [loadingData, setLoadingData] = useState(false);
   const [error, setError] = useState(null);
   const [info, setInfo] = useState('');
+  const modals = useActionModal();
 
   const load = async () => {
     if (!profile?.school_id) return;
@@ -198,9 +201,10 @@ export default function Students() {
         .update({ class_id: newClassId })
         .eq('id', studentId);
       if (updateErr) throw updateErr;
+      modals.success.show('Student class updated.');
       load();
     } catch (err) {
-      alert(err.message);
+      modals.error.show('Update failed', err.message);
     }
   };
 
@@ -212,28 +216,42 @@ export default function Students() {
         .update({ status: newStatus })
         .eq('id', studentId);
       if (updateErr) throw updateErr;
+      modals.success.show(newStatus === 'disabled' ? 'Student disabled.' : 'Student enabled.');
       load();
     } catch (err) {
-      alert(err.message);
+      modals.error.show('Status update failed', err.message);
     }
   };
 
   const deleteStudent = async (studentId, name) => {
-    if (!window.confirm(`Are you sure you want to delete ${name}? This will permanently remove the student and their records.`)) return;
-    try {
-      const { error: deleteErr } = await supabase
-        .from('students')
-        .delete()
-        .eq('id', studentId);
-      if (deleteErr) throw deleteErr;
-      load();
-    } catch (err) {
-      alert(err.message);
-    }
+    modals.confirm.show(
+      'Delete student?',
+      `This will permanently remove ${name || 'this student'}.`,
+      'Student records tied to this profile may no longer be available in the school dashboard.',
+      async () => {
+        modals.confirm.setLoading(true);
+        try {
+          const { error: deleteErr } = await supabase
+            .from('students')
+            .delete()
+            .eq('id', studentId);
+          if (deleteErr) throw deleteErr;
+          modals.confirm.close();
+          modals.success.show('Student deleted successfully.');
+          load();
+        } catch (err) {
+          modals.error.show('Delete failed', err.message);
+        } finally {
+          modals.confirm.setLoading(false);
+        }
+      },
+      { confirmText: 'Delete', isDangerous: true }
+    );
   };
 
   return (
     <div className="space-y-4">
+      <ActionModalRenderer modals={modals} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Students</h1>

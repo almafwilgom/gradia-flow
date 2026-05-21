@@ -48,8 +48,8 @@ export default function LoginModal({ onSubmit, isLoading = false, error = null, 
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="w-full max-w-md">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md animate-in fade-in zoom-in duration-300">
         {/* Modal Card */}
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
           {/* Header Section */}
