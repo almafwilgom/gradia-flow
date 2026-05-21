@@ -286,7 +286,7 @@ export default function Students() {
           </div>
 
           <form onSubmit={addStudent} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-3">
+            <div className="flex flex-col gap-3 md:grid md:grid-cols-3 xl:grid-cols-6">
               <input
                 placeholder="First name"
                 className="w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2"
