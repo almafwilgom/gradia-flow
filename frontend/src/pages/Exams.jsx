@@ -3,6 +3,8 @@ import dayjs from 'dayjs';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../hooks/useAuth';
 import { SimpleTable } from '../components/SimpleTable';
+import { useActionModal } from '../hooks/useActionModal';
+import { ActionModalRenderer } from '../components/ActionModals';
 
 export default function Exams() {
   const { profile } = useAuth();
@@ -23,6 +25,7 @@ export default function Exams() {
   const [answers, setAnswers] = useState({});
   const [countdown, setCountdown] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const modals = useActionModal();
 
   const loadExams = async () => {
     const query = supabase.from('exams').select('id, title, start_at, end_at, mode, duration_minutes, class_id');
@@ -82,20 +85,26 @@ export default function Exams() {
 
   const submitExam = async () => {
     if (!selectedExam) return;
-    let score = 0;
-    questions.forEach((q) => {
-      const answer = answers[q.id];
-      if (answer && answer === q.correct_option) score += Number(q.points ?? 1);
-    });
-    await supabase.from('exam_submissions').upsert({
-      exam_id: selectedExam.id,
-      student_id: profile.id,
-      score,
-      answers
-    });
-    setSubmitted(true);
-    // eslint-disable-next-line no-alert
-    alert(`Submitted. Score: ${score}`);
+    try {
+      let score = 0;
+      questions.forEach((q) => {
+        const answer = answers[q.id];
+        if (answer && answer === q.correct_option) score += Number(q.points ?? 1);
+      });
+
+      const { error } = await supabase.from('exam_submissions').upsert({
+        exam_id: selectedExam.id,
+        student_id: profile.id,
+        score,
+        answers
+      });
+      if (error) throw error;
+
+      setSubmitted(true);
+      modals.success.show('Exam submitted', `Your answers were submitted successfully. Score: ${score}`);
+    } catch (err) {
+      modals.error.show('Submission failed', err.message || 'Unable to submit this exam right now.');
+    }
   };
 
   useEffect(() => {
@@ -124,6 +133,7 @@ export default function Exams() {
 
   return (
     <div className="space-y-4">
+      <ActionModalRenderer modals={modals} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Exams / CBT</h1>
