@@ -289,27 +289,27 @@ export default function Students() {
             <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-3">
               <input
                 placeholder="First name"
-                className="rounded-lg border border-slate-200 px-3 py-2"
+                className="w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2"
                 value={form.first_name}
                 onChange={(e) => setForm((current) => ({ ...current, first_name: e.target.value }))}
                 required
               />
               <input
                 placeholder="Last name"
-                className="rounded-lg border border-slate-200 px-3 py-2"
+                className="w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2"
                 value={form.last_name}
                 onChange={(e) => setForm((current) => ({ ...current, last_name: e.target.value }))}
                 required
               />
               <input
                 placeholder="Admission No"
-                className="rounded-lg border border-slate-200 px-3 py-2"
+                className="w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2"
                 value={form.admission_no}
                 onChange={(e) => setForm((current) => ({ ...current, admission_no: e.target.value }))}
                 required
               />
               <select
-                className="rounded-lg border border-slate-200 px-3 py-2 bg-white col-span-2"
+                className="w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2 bg-white md:col-span-2"
                 value={form.class_id}
                 onChange={(e) =>
                   setForm((current) => ({
@@ -337,12 +337,12 @@ export default function Students() {
                 })}
               </select>
               {profile?.role === 'teacher' && assignedClassId && (
-                <div className="rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 text-sm text-slate-600">
+                <div className="w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 text-sm text-slate-600 md:col-span-2 xl:col-span-1">
                   Assigned class only: {classes.find((item) => item.id === assignedClassId)?.name ?? 'Loading class...'}
                 </div>
               )}
               <select
-                className="rounded-lg border border-slate-200 px-3 py-2 bg-white"
+                className="w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2 bg-white"
                 value={form.stream_id}
                 onChange={(e) => setForm((current) => ({ ...current, stream_id: e.target.value }))}
                 disabled={!form.class_id || filteredStreams.length === 0}
