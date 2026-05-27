@@ -472,6 +472,29 @@ export default function Classes() {
     );
   };
 
+  const exportClassList = () => {
+    if (classStudents.length === 0) return;
+    
+    const headers = ['Student Name', 'Admission No', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...classStudents.map(s => [
+        `"${s.first_name} ${s.last_name}"`,
+        `"${s.admission_no || ''}"`,
+        `"${s.status || 'active'}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${selectedClass.name.replace(/\s+/g, '_')}_Students.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (selectedClass) {
     return (
       <div className="space-y-6">
@@ -529,9 +552,20 @@ export default function Classes() {
             <div className="bg-white rounded-2xl shadow-soft border border-slate-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
                 <h3 className="font-bold text-slate-800">Students List</h3>
-                <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full uppercase">
-                  {classStudents.length} Enrolled
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={exportClassList}
+                    disabled={classStudents.length === 0}
+                    className="text-xs font-bold bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full hover:bg-emerald-100 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Export as CSV"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Export CSV
+                  </button>
+                  <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full uppercase">
+                    {classStudents.length} Enrolled
+                  </span>
+                </div>
               </div>
               {loadingDetails ? (
                 <div className="p-12 text-center text-slate-400">Loading students...</div>
