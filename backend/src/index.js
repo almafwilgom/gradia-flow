@@ -102,13 +102,38 @@ app.use(express.json({ limit: '2mb' }));
 
 // ===== Email Helper (Brevo API) =====
 async function sendEmail({ to, subject, html, text, replyTo }) {
+  // Use Nodemailer SMTP if configured (more reliable if REST API is IP restricted)
+  if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
+    const transporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: Number(SMTP_PORT) || 587,
+      secure: Number(SMTP_PORT) === 465,
+      auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS
+      }
+    });
+
+    const info = await transporter.sendMail({
+      from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM_ADDRESS || SMTP_USER}>`,
+      to,
+      subject,
+      text,
+      html,
+      replyTo
+    });
+    console.log('[SMTP] Email sent:', info.messageId);
+    return info;
+  }
+
+  // Fallback to Brevo REST API if SMTP is not configured
   if (!BREVO_API_KEY) {
-    console.error('[EMAIL ERROR] BREVO_API_KEY is missing');
-    throw new Error('Email service not configured (API Key missing)');
+    console.error('[EMAIL ERROR] BREVO_API_KEY and SMTP credentials are missing');
+    throw new Error('Email service not configured (API Key and SMTP missing)');
   }
 
   const payload = {
-    sender: { name: EMAIL_FROM_NAME, email: EMAIL_FROM_ADDRESS || SMTP_USER },
+    sender: { name: EMAIL_FROM_NAME, email: EMAIL_FROM_ADDRESS || SMTP_USER || 'noreply@gradiaflow.com' },
     to: [{ email: to }],
     subject: subject,
     htmlContent: html,
