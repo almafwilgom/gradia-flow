@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../hooks/useAuth';
 import { apiFetch } from '../lib/api';
 import { SimpleTable } from '../components/SimpleTable';
+import { downloadCsv, parseCsv, sanitizeFilename } from '../lib/csv';
 
 const TERM_OPTIONS = ['Term 1', 'Term 2', 'Term 3'];
 const ENTRY_MODES = [
@@ -31,6 +32,11 @@ function roundTwo(value) {
 
 function computeTotal(caScore, examScore) {
   return roundTwo(toNumber(caScore) + toNumber(examScore));
+}
+
+function defaultSessionYear() {
+  const year = dayjs().month() >= 7 ? dayjs().year() : dayjs().year() - 1;
+  return `${year}/${year + 1}`;
 }
 
 function buildClassStandings(rows) {
@@ -148,7 +154,7 @@ export default function Results() {
     student_id: '',
     subject_id: '',
     term: 'Term 1',
-    session_year: '2025/2026'
+    session_year: defaultSessionYear()
   });
   const [sheetRows, setSheetRows] = useState([]);
   const [bulkRows, setBulkRows] = useState([]);
@@ -206,19 +212,8 @@ export default function Results() {
       reader.onload = async (evt) => {
         try {
           const text = evt.target.result;
-          const rows = text.split(/\r?\n/).filter(line => line.trim() !== '');
-          
-          if (rows.length < 2) throw new Error('File is empty or missing headers.');
-
-          const headers = rows[0].split(',').map(h => h.trim().toLowerCase().replace(/["']/g, ''));
-          const data = rows.slice(1).map(row => {
-            const values = row.split(',').map(v => v.trim().replace(/["']/g, ''));
-            const obj = {};
-            headers.forEach((h, i) => {
-              obj[h] = values[i];
-            });
-            return obj;
-          });
+          const data = parseCsv(text);
+          if (data.length === 0) throw new Error('File is empty or missing student result rows.');
 
           setReportMsg(`Processing ${data.length} rows...`);
 
@@ -320,7 +315,7 @@ export default function Results() {
     setLoadingRefs(true);
     setError(null);
     try {
-      const [classesRes, studentsRes] = await Promise.all([
+      const [classesRes, studentsRes, schoolRes] = await Promise.all([
         supabase
           .from('classes')
           .select('id, name, level')
@@ -331,7 +326,12 @@ export default function Results() {
           .from('students')
           .select('id, first_name, last_name, class_id, admission_no, classes(name, level)')
           .eq(isTeacher && teacherClassId ? 'class_id' : 'school_id', isTeacher && teacherClassId ? teacherClassId : profile.school_id)
-          .order('first_name', { ascending: true })
+          .order('first_name', { ascending: true }),
+        supabase
+          .from('schools')
+          .select('*')
+          .eq('id', profile.school_id)
+          .maybeSingle()
       ]);
 
       if (classesRes.error) throw classesRes.error;
@@ -340,6 +340,16 @@ export default function Results() {
       const classRows = classesRes.data ?? [];
       setClasses(isTeacher && teacherClassId ? classRows.filter((item) => item.id === teacherClassId) : classRows);
       setStudents(studentsRes.data ?? []);
+
+      if (!schoolRes.error && schoolRes.data) {
+        const currentTerm = schoolRes.data.current_term;
+        const currentSession = schoolRes.data.current_session_year;
+        setFilters((current) => ({
+          ...current,
+          term: current.term === 'Term 1' && currentTerm ? currentTerm : current.term,
+          session_year: current.session_year === defaultSessionYear() && currentSession ? currentSession : current.session_year
+        }));
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -728,6 +738,36 @@ export default function Results() {
     }
   };
 
+  const downloadResultTemplate = () => {
+    const selectedClass = classes.find((item) => item.id === filters.class_id);
+    const subjects = filters.subject_id
+      ? classSubjects.filter((subject) => subject.id === filters.subject_id)
+      : classSubjects;
+    const rows = [];
+
+    filteredStudents.forEach((student) => {
+      subjects.forEach((subject) => {
+        rows.push([
+          student.admission_no ?? '',
+          `${student.first_name} ${student.last_name}`.trim(),
+          subject.code ?? '',
+          subject.name ?? '',
+          filters.term,
+          filters.session_year,
+          '',
+          ''
+        ]);
+      });
+    });
+
+    downloadCsv(`${sanitizeFilename(selectedClass?.name || 'class')}-bulk-results-template.csv`, [
+      ['admission_no', 'student_name', 'subject_code', 'subject_name', 'term', 'session_year', 'ca_score', 'exam_score'],
+      ...(rows.length
+        ? rows
+        : [['ADM-001', 'Student Name', 'MATH', 'Mathematics', filters.term, filters.session_year, '20', '60']])
+    ]);
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -761,6 +801,14 @@ export default function Results() {
               ))}
             </div>
             <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={downloadResultTemplate}
+                disabled={!filters.class_id || filteredStudents.length === 0 || classSubjects.length === 0}
+                className="rounded-lg px-4 py-2 text-sm font-semibold bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Download Result CSV Template
+              </button>
               <label className={`rounded-lg px-4 py-2 text-sm font-semibold transition cursor-pointer flex items-center gap-2 ${
                 uploadingFile ? 'bg-slate-100 text-slate-400' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
               }`}>

@@ -98,7 +98,9 @@ export default function Settings() {
       paystack_enabled: school.paystack_enabled,
       paystack_public_key: school.paystack_public_key,
       current_term_fees: school.current_term_fees,
-      next_resumption_date: school.next_resumption_date
+      next_resumption_date: school.next_resumption_date,
+      current_session_year: school.current_session_year,
+      current_term: school.current_term
     };
 
     const { error: saveError } = await supabase.from('schools').update(payload).eq('id', school.id);
@@ -394,6 +396,27 @@ export default function Settings() {
           />
           <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3 pt-4 border-t border-slate-100">
             <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-500 uppercase">Academic Session</label>
+              <input
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                value={school.current_session_year ?? ''}
+                onChange={(e) => setSchool((current) => ({ ...current, current_session_year: e.target.value }))}
+                placeholder="e.g. 2025/2026"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-500 uppercase">Current Term</label>
+              <select
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-white"
+                value={school.current_term ?? 'Term 1'}
+                onChange={(e) => setSchool((current) => ({ ...current, current_term: e.target.value }))}
+              >
+                <option>Term 1</option>
+                <option>Term 2</option>
+                <option>Term 3</option>
+              </select>
+            </div>
+            <div className="space-y-1">
               <label className="text-xs font-medium text-slate-500 uppercase">Term School Fees (₦)</label>
               <input
                 type="number"
@@ -421,4 +444,3 @@ export default function Settings() {
     </div>
   );
 }
-

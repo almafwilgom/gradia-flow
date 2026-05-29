@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { SimpleTable } from '../components/SimpleTable';
 import { useActionModal } from '../hooks/useActionModal';
 import { ActionModalRenderer } from '../components/ActionModals';
+import { downloadCsv, parseCsv, sanitizeFilename } from '../lib/csv';
 
 const SCHOOL_SECTIONS = [
   { value: 'nursery', label: 'Nursery' },
@@ -57,6 +58,11 @@ export default function Students() {
   const [streams, setStreams] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [showForm, setShowForm] = useState(true);
+  const [selectedClassId, setSelectedClassId] = useState('');
+  const [bulkImporting, setBulkImporting] = useState(false);
+  const [attendanceStudent, setAttendanceStudent] = useState(null);
+  const [attendanceRows, setAttendanceRows] = useState([]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
   const [error, setError] = useState(null);
@@ -72,7 +78,7 @@ export default function Students() {
       const studentQuery = supabase
         .from('students')
         .select(
-          'id, first_name, last_name, admission_no, student_code, status, class_id, stream_id, classes(name, level), streams(name), parents(full_name, phone), profiles(id)'
+          'id, first_name, last_name, admission_no, student_code, status, class_id, stream_id, classes(name, level), streams(name), parents(full_name, email, phone, address), profiles(id)'
         );
       const classQuery = supabase.from('classes').select('id, name, level');
 
@@ -127,10 +133,181 @@ export default function Students() {
 
   const classGroups = useMemo(() => groupClassesBySection(classes), [classes]);
 
+  const displayedStudents = useMemo(
+    () => students.filter((student) => !selectedClassId || student.class_id === selectedClassId),
+    [students, selectedClassId]
+  );
+
   const filteredStreams = useMemo(
     () => streams.filter((item) => item.class_id === form.class_id),
     [streams, form.class_id]
   );
+
+  const downloadStudentTemplate = () => {
+    const sampleClass = classes[0];
+    const sampleStream = streams.find((item) => item.class_id === sampleClass?.id);
+    downloadCsv('student-bulk-upload-template.csv', [
+      [
+        'first_name',
+        'last_name',
+        'admission_no',
+        'class_id',
+        'class_name',
+        'stream_id',
+        'stream_name',
+        'guardian_full_name',
+        'guardian_email',
+        'guardian_phone',
+        'guardian_address'
+      ],
+      [
+        'Amina',
+        'Okafor',
+        'ADM-001',
+        sampleClass?.id ?? '',
+        sampleClass?.name ?? 'Primary 1',
+        sampleStream?.id ?? '',
+        sampleStream?.name ?? '',
+        'Mrs Ada Okafor',
+        'parent@example.com',
+        '08030000000',
+        '12 School Road'
+      ]
+    ]);
+  };
+
+  const readFileAsText = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => resolve(event.target.result);
+      reader.onerror = () => reject(new Error('Unable to read CSV file.'));
+      reader.readAsText(file);
+    });
+
+  const resolveClassId = (row) => {
+    if (row.class_id && classes.some((item) => item.id === row.class_id)) return row.class_id;
+    const className = String(row.class_name || row.class || '').trim().toLowerCase();
+    return classes.find((item) => item.name?.trim().toLowerCase() === className)?.id ?? '';
+  };
+
+  const resolveStreamId = (row, classId) => {
+    if (row.stream_id && streams.some((item) => item.id === row.stream_id && item.class_id === classId)) {
+      return row.stream_id;
+    }
+    const streamName = String(row.stream_name || row.stream || '').trim().toLowerCase();
+    if (!streamName) return '';
+    return streams.find((item) => item.class_id === classId && item.name?.trim().toLowerCase() === streamName)?.id ?? '';
+  };
+
+  const handleBulkStudentUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !profile?.school_id) return;
+
+    setBulkImporting(true);
+    setError(null);
+    setInfo('');
+
+    try {
+      const rows = parseCsv(await readFileAsText(file));
+      if (rows.length === 0) throw new Error('CSV file has no student rows.');
+
+      let created = 0;
+      const failures = [];
+
+      for (const [index, row] of rows.entries()) {
+        const classId = resolveClassId(row);
+        const payload = {
+          school_id: profile.school_id,
+          first_name: row.first_name,
+          last_name: row.last_name,
+          admission_no: row.admission_no || row.admission_number,
+          class_id: classId,
+          stream_id: resolveStreamId(row, classId) || null,
+          guardian_full_name: row.guardian_full_name || row.parent_name || row.guardian_name,
+          guardian_email: row.guardian_email || row.parent_email,
+          guardian_phone: row.guardian_phone || row.parent_phone,
+          guardian_address: row.guardian_address || row.parent_address
+        };
+
+        try {
+          if (!payload.first_name || !payload.last_name || !payload.admission_no || !payload.class_id) {
+            throw new Error('Missing first_name, last_name, admission_no, or class/class_id');
+          }
+          await apiFetch('/api/students', { method: 'POST', body: payload });
+          created += 1;
+        } catch (err) {
+          failures.push(`Row ${index + 2}: ${err.message}`);
+        }
+      }
+
+      setInfo(`Bulk upload finished. Created ${created} student${created === 1 ? '' : 's'}.${failures.length ? ` ${failures.length} row(s) failed: ${failures.slice(0, 3).join(' | ')}` : ''}`);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBulkImporting(false);
+    }
+  };
+
+  const downloadStudentRecords = () => {
+    const selectedClass = classes.find((item) => item.id === selectedClassId);
+    const filename = `${sanitizeFilename(selectedClass?.name || 'all-classes')}-student-records.csv`;
+    downloadCsv(filename, [
+      ['student_code', 'admission_no', 'first_name', 'last_name', 'section', 'class', 'stream', 'status', 'guardian_name', 'guardian_email', 'guardian_phone', 'guardian_address'],
+      ...displayedStudents.map((student) => [
+        student.student_code ?? '',
+        student.admission_no ?? '',
+        student.first_name ?? '',
+        student.last_name ?? '',
+        formatSection(student.classes?.level),
+        student.classes?.name ?? '',
+        student.streams?.name ?? '',
+        student.status ?? 'active',
+        student.parents?.full_name ?? '',
+        student.parents?.email ?? '',
+        student.parents?.phone ?? '',
+        student.parents?.address ?? ''
+      ])
+    ]);
+  };
+
+  const viewAttendance = async (student) => {
+    setAttendanceStudent(student);
+    setAttendanceRows([]);
+    setAttendanceLoading(true);
+    setError(null);
+    try {
+      const { data, error: attendanceErr } = await supabase
+        .from('attendance_students')
+        .select('attended_on, status, remarks')
+        .eq('student_id', student.id)
+        .order('attended_on', { ascending: false })
+        .limit(200);
+
+      if (attendanceErr) throw attendanceErr;
+      setAttendanceRows(data ?? []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
+
+  const downloadAttendanceRecords = () => {
+    if (!attendanceStudent) return;
+    downloadCsv(`${sanitizeFilename(`${attendanceStudent.first_name}-${attendanceStudent.last_name}`)}-attendance.csv`, [
+      ['student_code', 'admission_no', 'student_name', 'date', 'status', 'remarks'],
+      ...attendanceRows.map((row) => [
+        attendanceStudent.student_code ?? '',
+        attendanceStudent.admission_no ?? '',
+        `${attendanceStudent.first_name} ${attendanceStudent.last_name}`.trim(),
+        row.attended_on,
+        row.status,
+        row.remarks ?? ''
+      ])
+    ]);
+  };
 
   const addStudent = async (e) => {
     e.preventDefault();
@@ -264,6 +441,45 @@ export default function Students() {
         >
           {showForm ? 'Hide Form' : 'Add Student'}
         </button>
+      </div>
+
+      <div className="bg-white rounded-xl p-4 shadow-card border border-slate-100 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <label className="text-sm text-slate-600 lg:w-80">
+          Class records
+          <select
+            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 bg-white"
+            value={selectedClassId}
+            onChange={(e) => setSelectedClassId(e.target.value)}
+          >
+            <option value="">All classes</option>
+            {classes.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name} ({formatSection(item.level)})
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={downloadStudentTemplate}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Download Student CSV Template
+          </button>
+          <label className={`rounded-lg px-4 py-2 text-sm font-semibold cursor-pointer ${bulkImporting ? 'bg-slate-100 text-slate-400' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}>
+            {bulkImporting ? 'Uploading...' : 'Bulk Upload Students'}
+            <input type="file" accept=".csv" className="hidden" onChange={handleBulkStudentUpload} disabled={bulkImporting} />
+          </label>
+          <button
+            type="button"
+            onClick={downloadStudentRecords}
+            disabled={displayedStudents.length === 0}
+            className="rounded-lg bg-brand-600 text-white px-4 py-2 text-sm font-semibold hover:bg-brand-700 disabled:opacity-60"
+          >
+            Download Class Students
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -421,7 +637,7 @@ export default function Students() {
       <div className="bg-white rounded-xl shadow-card border border-slate-100 overflow-hidden">
         <SimpleTable
           headers={['Name', 'Code', 'Parent', 'Section', 'Class', 'Stream', 'Status', 'Actions']}
-          rows={students.map((student) => [
+          rows={displayedStudents.map((student) => [
             <div className="flex flex-col">
               <span className="font-medium text-slate-900">{`${student.first_name} ${student.last_name}`}</span>
               <span className={`text-[10px] font-bold uppercase tracking-widest ${student.status === 'disabled' ? 'text-rose-500' : 'text-emerald-500'}`}>
@@ -456,6 +672,12 @@ export default function Students() {
             student.streams?.name ?? '-',
             student.status === 'disabled' ? 'Inactive' : 'Active',
             <div key={`actions-${student.id}`} className="flex items-center gap-3">
+              <button
+                onClick={() => viewAttendance(student)}
+                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+              >
+                Attendance
+              </button>
               {!student.profiles?.id && profile?.role !== 'teacher' && (
                 <button
                   onClick={() => createStudentAccount(student)}
@@ -481,6 +703,49 @@ export default function Students() {
           ])}
         />
       </div>
+
+      {attendanceStudent && (
+        <div className="bg-white rounded-xl shadow-card border border-slate-100 overflow-hidden">
+          <div className="p-4 border-b border-slate-100 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Attendance: {attendanceStudent.first_name} {attendanceStudent.last_name}
+              </h2>
+              <p className="text-sm text-slate-500">
+                {attendanceLoading ? 'Loading attendance...' : `${attendanceRows.length} attendance record(s)`}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={downloadAttendanceRecords}
+                disabled={attendanceRows.length === 0}
+                className="rounded-lg bg-brand-600 text-white px-4 py-2 text-sm font-semibold hover:bg-brand-700 disabled:opacity-60"
+              >
+                Download Attendance
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAttendanceStudent(null);
+                  setAttendanceRows([]);
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+          <SimpleTable
+            headers={['Date', 'Status', 'Remarks']}
+            rows={attendanceRows.map((row) => [
+              row.attended_on,
+              row.status,
+              row.remarks ?? '-'
+            ])}
+          />
+        </div>
+      )}
 
       {loadingData && <div className="text-sm text-slate-500">Loading students and class options...</div>}
     </div>
