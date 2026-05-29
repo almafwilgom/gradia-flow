@@ -1854,10 +1854,14 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
       }
     }
 
-    // Check if user already exists in auth
-    const { data: userData, error: userLookupErr } = await supabaseService.auth.admin.getUserByEmail(normalizedEmail);
+    // Check if user already exists in profiles (mirrors auth)
+    const { data: userData, error: userLookupErr } = await supabaseService
+      .from('profiles')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
     
-    if (!userLookupErr && userData?.user) {
+    if (!userLookupErr && userData?.id) {
       console.log(`[EMAIL] Email already registered: ${normalizedEmail}`);
       return res.status(400).json({ error: 'This email is already registered. Please sign in instead.' });
     }
