@@ -63,9 +63,15 @@ export function useAuth() {
       : null);
 
   useEffect(() => {
-    if (profile?.role && session?.user?.user_metadata?.role) {
-      if (profile.role !== session.user.user_metadata.role) {
-        supabase.auth.refreshSession();
+    // Sync profile role with JWT metadata role
+    if (profile?.role && session?.user) {
+      const jwtRole = session.user.user_metadata?.role;
+      
+      // If JWT doesn't have role or roles don't match, refresh session to get updated JWT
+      if (!jwtRole || profile.role !== jwtRole) {
+        supabase.auth.refreshSession().catch(err => {
+          console.error('Failed to refresh session:', err);
+        });
       }
     }
   }, [profile?.role, session?.user?.user_metadata?.role]);

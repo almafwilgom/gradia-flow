@@ -2374,6 +2374,83 @@ app.post('/api/public/auth/reset-password', async (req, res) => {
   }
 });
 
+// Verify and fix super admin role (debugging endpoint)
+app.post('/api/verify-super-admin-role', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const jwtRole = req.user.user_metadata?.role;
+    
+    // Fetch profile from database
+    const { data: profile, error: profileErr } = await supabaseService
+      .from('profiles')
+      .select('id, role, email')
+      .eq('id', userId)
+      .single();
+    
+    if (profileErr) {
+      return res.status(500).json({ 
+        error: 'Failed to fetch profile',
+        details: profileErr.message 
+      });
+    }
+    
+    const profileRole = profile?.role;
+    
+    // Check if role matches
+    const rolesMatch = jwtRole === profileRole && profileRole === 'super_admin';
+    
+    if (!rolesMatch) {
+      console.log(`[SUPER_ADMIN_ROLE_FIX] Fixing roles for user ${userId}: JWT='${jwtRole}', Profile='${profileRole}'`);
+      
+      // Update profile to super_admin
+      const { error: updateProfileErr } = await supabaseService
+        .from('profiles')
+        .update({ role: 'super_admin' })
+        .eq('id', userId);
+      
+      if (updateProfileErr) {
+        return res.status(500).json({ 
+          error: 'Failed to update profile role',
+          details: updateProfileErr.message 
+        });
+      }
+      
+      // Update JWT metadata
+      const { error: updateUserErr } = await supabaseService.auth.admin.updateUserById(userId, {
+        user_metadata: {
+          ...req.user.user_metadata,
+          role: 'super_admin'
+        }
+      });
+      
+      if (updateUserErr) {
+        return res.status(500).json({ 
+          error: 'Failed to update JWT metadata',
+          details: updateUserErr.message 
+        });
+      }
+      
+      return res.json({
+        fixed: true,
+        before: { jwtRole, profileRole },
+        after: { jwtRole: 'super_admin', profileRole: 'super_admin' },
+        message: 'Super admin role has been fixed. Please refresh your browser.'
+      });
+    }
+    
+    return res.json({
+      fixed: false,
+      status: 'OK',
+      role: profileRole,
+      email: profile.email,
+      message: 'Super admin role is correctly configured.'
+    });
+  } catch (err) {
+    console.error('[VERIFY_SUPER_ADMIN_ERROR]', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', async () => {
   // eslint-disable-next-line no-console
   console.log(`Express backend running on :${PORT}`);
