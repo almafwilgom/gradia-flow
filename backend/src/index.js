@@ -2227,101 +2227,40 @@ app.post('/api/public/auth/request-password-reset', async (req, res) => {
       return res.status(400).json({ error: 'Email is required' });
     }
 
-    if (!BREVO_API_KEY) {
-      return res.status(500).json({ error: 'Email service not configured (BREVO_API_KEY missing)' });
-    }
-
     const normalizedEmail = String(email).toLowerCase().trim();
-    const now = Date.now();
 
-    // Find user by email
+    // Check if user exists in profiles first, to match existing security role logic
     const { data: user, error: userErr } = await supabaseService
       .from('profiles')
-      .select('id, email, full_name, role')
+      .select('id, email, role')
       .eq('email', normalizedEmail)
       .maybeSingle();
 
-    // For security, don't reveal if email exists
-    if (!user || userErr) {
+    // For security, don't reveal if email exists or role is invalid
+    if (!user || userErr || !['school_admin', 'super_admin'].includes(user.role)) {
       return res.json({
         ok: true,
         message: 'If an account exists with that email, a reset link has been sent.'
       });
     }
 
-    // Check if user is a school admin or super admin (allow password reset for these roles)
-    if (!['school_admin', 'super_admin'].includes(user.role)) {
-      return res.json({
-        ok: true,
-        message: 'If an account exists with that email, a reset link has been sent.'
-      });
+    // Call Supabase's resetPasswordForEmail
+    const { error: resetErr } = await supabaseService.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: `${FRONTEND_URL}/auth/reset-password`
+    });
+
+    if (resetErr) {
+      console.error('[SUPABASE PASSWORD RESET ERROR]', resetErr);
+      return res.status(400).json({ error: resetErr.message });
     }
 
-    // Clean up expired reset tokens
-    await supabaseService
-      .from('password_reset_tokens')
-      .delete()
-      .lt('expires_at', new Date().toISOString());
-
-    // Check if recent reset token exists (rate limiting)
-    const { data: recentToken } = await supabaseService
-      .from('password_reset_tokens')
-      .select('created_at')
-      .eq('user_id', user.id)
-      .is('used_at', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (recentToken && now - new Date(recentToken.created_at).getTime() < PASSWORD_RESET_RESEND_COOLDOWN_MS) {
-      return res.json({
-        ok: true,
-        message: 'A reset link was already sent recently. Please check your inbox or spam folder.'
-      });
-    }
-
-    // Generate reset token
-    const token = generatePasswordResetToken();
-    const expiresAt = new Date(now + PASSWORD_RESET_TOKEN_TTL_MS).toISOString();
-
-    // Store reset token in database
-    const { error: tokenErr } = await supabaseService
-      .from('password_reset_tokens')
-      .insert({
-        user_id: user.id,
-        token,
-        expires_at: expiresAt,
-        created_at: new Date(now).toISOString()
-      });
-
-    if (tokenErr) throw tokenErr;
-
-    // Send email
-    const resetUrl = `${FRONTEND_URL}/auth/reset-password?token=${token}`;
-    const htmlContent = createPasswordResetTemplate(resetUrl, normalizedEmail);
-    const textContent = createPlainTextPasswordReset(resetUrl, normalizedEmail);
-
-    try {
-      console.log(`[PASSWORD RESET] Sending reset email to ${normalizedEmail} via Brevo API`);
-      await sendEmail({
-        to: normalizedEmail,
-        subject: 'Reset Your GradiaFlow Password',
-        text: textContent,
-        html: htmlContent,
-        replyTo: EMAIL_FROM_ADDRESS || SMTP_USER
-      });
-      console.log(`[PASSWORD RESET] Reset email sent to ${normalizedEmail}`);
-    } catch (mailErr) {
-      console.error('[PASSWORD RESET EMAIL ERROR]', mailErr.message);
-      // Still log for debugging, even if email fails (for security, we don't expose this to user)
-    }
-
+    console.log(`[PASSWORD RESET] Supabase reset link successfully sent to ${normalizedEmail}`);
     return res.json({
       ok: true,
       message: 'If an account exists with that email, a reset link has been sent.'
     });
   } catch (err) {
-    console.error('[PASSWORD RESET ERROR]', err);
+    console.error('[REQUEST PASSWORD RESET ERROR]', err);
     return res.status(500).json({ error: err.message });
   }
 });

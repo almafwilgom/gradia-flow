@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, CheckCircle2, AlertCircle, Eye, EyeOff, ArrowLeft, School, ShieldCheck } from 'lucide-react';
 import { API_URL } from '../../lib/api';
+import { supabase } from '../../lib/supabaseClient';
 
 function StrengthBar({ password }) {
   const checks = [
@@ -51,13 +52,47 @@ export default function ResetPassword() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [userEmail, setUserEmail] = useState('');
+  const [isSupabaseReset, setIsSupabaseReset] = useState(false);
 
-  // Verify token on mount
+  // Verify token/session on mount
   useEffect(() => {
-    async function verifyToken() {
-      if (!token) {
-        setError('Invalid reset link — token is missing.');
+    // 1. Check for Supabase Auth recovery session
+    async function checkSupabaseSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setIsSupabaseReset(true);
+        setVerified(true);
+        setUserEmail(session.user?.email || '');
         setVerifying(false);
+        return true;
+      }
+      return false;
+    }
+
+    // 2. Listen for auth state change (like PASSWORD_RECOVERY event)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || session) {
+        setIsSupabaseReset(true);
+        setVerified(true);
+        setUserEmail(session?.user?.email || '');
+        setVerifying(false);
+      }
+    });
+
+    // 3. Fallback to token query param if no Supabase session exists
+    async function verifyToken() {
+      const hasSession = await checkSupabaseSession();
+      if (hasSession) return;
+
+      if (!token) {
+        // Wait a little bit in case the hash takes a moment to process by Supabase listener
+        setTimeout(async () => {
+          const stillNoSession = !(await checkSupabaseSession());
+          if (stillNoSession) {
+            setError('Invalid reset link — token is missing.');
+            setVerifying(false);
+          }
+        }, 1500);
         return;
       }
 
@@ -86,6 +121,8 @@ export default function ResetPassword() {
     }
 
     verifyToken();
+
+    return () => subscription.unsubscribe();
   }, [token]);
 
   async function handleSubmit(e) {
@@ -104,18 +141,29 @@ export default function ResetPassword() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/api/public/auth/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, password })
-      });
+      if (isSupabaseReset) {
+        const { error: updateErr } = await supabase.auth.updateUser({ password });
+        if (updateErr) {
+          setError(updateErr.message || 'Failed to reset password via Supabase');
+          setLoading(false);
+          return;
+        }
+        // Sign out to clean up recovery session
+        await supabase.auth.signOut();
+      } else {
+        const res = await fetch(`${API_URL}/api/public/auth/reset-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, password })
+        });
 
-      const data = await res.json();
+        const data = await res.json();
 
-      if (!res.ok) {
-        setError(data.error || 'Failed to reset password');
-        setLoading(false);
-        return;
+        if (!res.ok) {
+          setError(data.error || 'Failed to reset password');
+          setLoading(false);
+          return;
+        }
       }
 
       setSubmitted(true);
