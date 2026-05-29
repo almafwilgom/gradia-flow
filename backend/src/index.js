@@ -1817,7 +1817,7 @@ function createPlainTextConfirmation(schoolName, confirmationUrl, userName) {
   ].join('\n');
 }
 
-// Send custom confirmation email
+// Send custom confirmation email (via Supabase invite)
 app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
   try {
     const { email, full_name, school_name } = req.body;
@@ -1825,26 +1825,34 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
       return res.status(400).json({ error: 'email, full_name, and school_name are required' });
     }
 
-    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-      return res.status(500).json({ error: 'Email service not configured' });
-    }
-
     const normalizedEmail = String(email).toLowerCase().trim();
     const normalizedName = String(full_name).trim();
     const normalizedSchoolName = String(school_name).trim();
     const now = Date.now();
 
-    console.log(`[EMAIL] Starting confirmation email process for ${normalizedEmail}`);
+    console.log(`[EMAIL] Starting registration for ${normalizedEmail}`);
 
+    // Check if user already exists in profiles
+    const { data: existingProfile } = await supabaseService
+      .from('profiles')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (existingProfile?.id) {
+      console.log(`[EMAIL] Email already registered: ${normalizedEmail}`);
+      return res.status(400).json({ error: 'This email is already registered. Please sign in instead.' });
+    }
+
+    // Check for recently-sent invite (rate limiting using email_confirmation_tokens table)
     await pruneExpiredConfirmationTokens();
-
     const existingToken = await findConfirmationTokenByEmail(normalizedEmail);
     if (existingToken && new Date(existingToken.expires_at).getTime() > now) {
       const sentRecently =
         now - new Date(existingToken.last_sent_at || existingToken.created_at || now).getTime() <
         CONFIRMATION_RESEND_COOLDOWN_MS;
       if (sentRecently) {
-        console.log(`[EMAIL] Token sent recently to ${normalizedEmail}, rate limiting applied`);
+        console.log(`[EMAIL] Invite sent recently to ${normalizedEmail}, rate limiting`);
         return res.json({
           ok: true,
           reused: true,
@@ -1854,103 +1862,63 @@ app.post('/api/public/auth/send-confirmation-email', async (req, res) => {
       }
     }
 
-    // Check if user already exists in profiles (mirrors auth)
-    const { data: userData, error: userLookupErr } = await supabaseService
-      .from('profiles')
-      .select('id')
-      .eq('email', normalizedEmail)
-      .maybeSingle();
-    
-    if (!userLookupErr && userData?.id) {
-      console.log(`[EMAIL] Email already registered: ${normalizedEmail}`);
-      return res.status(400).json({ error: 'This email is already registered. Please sign in instead.' });
-    }
-
-    const token = existingToken?.token || generateConfirmationToken();
-    const expiresAt = new Date(now + CONFIRMATION_TOKEN_TTL_MS).toISOString();
-
-    const confirmationUrl = `${FRONTEND_URL}/auth/confirm-email?token=${token}`;
-    const htmlContent = createEmailTemplate(normalizedSchoolName, confirmationUrl, normalizedName);
-    const textContent = createPlainTextConfirmation(normalizedSchoolName, confirmationUrl, normalizedName);
-
-    try {
-      console.log(`[EMAIL] Sending confirmation email to ${normalizedEmail} via Brevo API`);
-      const mailResponse = await sendEmail({
-        to: normalizedEmail,
-        subject: `Confirm Your Email - GradiaFlow`,
-        text: textContent,
-        html: htmlContent,
-        replyTo: EMAIL_FROM_ADDRESS || SMTP_USER
-      });
-      console.log(`[EMAIL] Email sent successfully to ${normalizedEmail}`, { messageId: mailResponse?.messageId });
-    } catch (mailErr) {
-      console.error('[EMAIL SEND ERROR]', {
-        email: normalizedEmail,
-        error: mailErr.message
-      });
-      
-      const message = mailErr.message.toLowerCase();
-      // Handle authentication/configuration errors specifically
-      if (message.includes('unauthorized') || message.includes('key')) {
-        return res.status(500).json({ 
-          ok: false,
-          error: 'Email Service Configuration Error: The Brevo API key is invalid or blocked by IP whitelisting.',
-          details: { code: 'AUTH_FAILED' }
-        });
+    // Use Supabase's built-in invite to send the confirmation email
+    // This sends a "Set your password" email from Supabase's own email service
+    const { data: inviteData, error: inviteErr } = await supabaseService.auth.admin.inviteUserByEmail(
+      normalizedEmail,
+      {
+        data: {
+          full_name: normalizedName,
+          school_name: normalizedSchoolName,
+          role: 'school_admin',
+          pending_registration: true
+        },
+        redirectTo: `${FRONTEND_URL}/auth/confirm-email`
       }
-      
-      throw mailErr;
+    );
+
+    if (inviteErr) {
+      console.error('[INVITE ERROR]', inviteErr);
+      // If user was already invited but not confirmed, resend is allowed
+      if (inviteErr.message?.toLowerCase().includes('already been invited') || inviteErr.message?.toLowerCase().includes('already registered')) {
+        return res.status(400).json({ error: 'This email is already registered or has a pending invite. Please check your inbox or sign in.' });
+      }
+      return res.status(500).json({ error: inviteErr.message || 'Failed to send invite email' });
     }
 
+    // Store token record for rate limiting & metadata tracking
     const tokenPayload = {
-      token,
+      token: inviteData?.user?.id || generateConfirmationToken(), // use user id as token reference
       email: normalizedEmail,
       full_name: normalizedName,
       school_name: normalizedSchoolName,
-      expires_at: expiresAt,
+      expires_at: new Date(now + CONFIRMATION_TOKEN_TTL_MS).toISOString(),
       last_sent_at: new Date(now).toISOString(),
       consumed_at: null
     };
 
     if (existingToken?.id) {
-      const { error: updateErr } = await supabaseService
-        .from('email_confirmation_tokens')
-        .update(tokenPayload)
-        .eq('id', existingToken.id);
-      if (updateErr) {
-        console.error(`[EMAIL] Error updating token: ${updateErr.message}`);
-        throw updateErr;
-      }
+      await supabaseService.from('email_confirmation_tokens').update(tokenPayload).eq('id', existingToken.id);
     } else {
-      const { error: insertErr } = await supabaseService
-        .from('email_confirmation_tokens')
-        .insert(tokenPayload);
-      if (insertErr) {
-        console.error(`[EMAIL] Error inserting token: ${insertErr.message}`);
-        throw insertErr;
-      }
+      await supabaseService.from('email_confirmation_tokens').insert(tokenPayload);
     }
 
-    console.log(`[EMAIL] Confirmation email sent successfully to ${normalizedEmail}`);
+    console.log(`[EMAIL] Invite email sent via Supabase to ${normalizedEmail}`);
     return res.json({
       ok: true,
-      reused: Boolean(existingToken?.id),
-      message: existingToken?.id
-        ? 'Confirmation email resent successfully. Please check your inbox or spam folder.'
-        : 'Confirmation email sent successfully',
+      message: 'Confirmation email sent successfully. Please check your inbox.',
       token_expires_in: '24 hours'
     });
   } catch (err) {
-    console.error('[EMAIL ERROR]', {
-      email: req.body.email,
-      error: err.message,
-      stack: err.stack
-    });
+    console.error('[EMAIL ERROR]', { email: req.body.email, error: err.message, stack: err.stack });
     return res.status(500).json({ error: err.message });
   }
 });
 
-// Verify confirmation token and complete registration
+
+
+
+// Verify confirmation token and complete registration (legacy custom token flow)
 app.post('/api/public/auth/verify-confirmation', async (req, res) => {
   try {
     const { token, password } = req.body;
@@ -1963,7 +1931,6 @@ app.post('/api/public/auth/verify-confirmation', async (req, res) => {
       return res.status(400).json({ error: 'Invalid or expired confirmation token' });
     }
 
-    // Check if token has expired
     if (Date.now() > new Date(tokenData.expires_at).getTime()) {
       await supabaseService.from('email_confirmation_tokens').delete().eq('id', tokenData.id);
       return res.status(400).json({ error: 'Confirmation token has expired' });
@@ -1971,20 +1938,13 @@ app.post('/api/public/auth/verify-confirmation', async (req, res) => {
 
     const { email, full_name, school_name } = tokenData;
 
-    // Check if user already exists
     const { data: existingUser } = await supabaseService.auth.admin.listUsers();
     const userExists = existingUser?.users?.some(u => u.email === email);
     if (userExists) {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
-    // Create school if it doesn't exist
-    const { data: school } = await supabaseService
-      .from('schools')
-      .select('id')
-      .eq('name', school_name)
-      .maybeSingle();
-
+    const { data: school } = await supabaseService.from('schools').select('id').eq('name', school_name).maybeSingle();
     let schoolId = school?.id;
     if (!schoolId) {
       const demoExpiresAt = new Date(Date.now() + CONFIRMATION_TOKEN_TTL_MS);
@@ -1999,28 +1959,19 @@ app.post('/api/public/auth/verify-confirmation', async (req, res) => {
           demo_started_at: new Date().toISOString(),
           demo_expires_at: demoExpiresAt.toISOString()
         })
-        .select('id')
-        .single();
-
+        .select('id').single();
       if (schoolErr) return res.status(400).json({ error: 'Failed to create school record' });
       schoolId = newSchool.id;
     }
 
-    // Create user in Supabase Auth
     const { data: authUser, error: authErr } = await supabaseService.auth.admin.createUser({
       email,
       password: password || crypto.randomUUID().slice(0, 12),
       email_confirm: true,
-      user_metadata: {
-        full_name,
-        role: 'school_admin',
-        school_id: schoolId
-      }
+      user_metadata: { full_name, role: 'school_admin', school_id: schoolId }
     });
-
     if (authErr) return res.status(400).json({ error: authErr.message });
 
-    // Create profile
     await supabaseService.from('profiles').insert({
       id: authUser.user.id,
       email,
@@ -2029,26 +1980,101 @@ app.post('/api/public/auth/verify-confirmation', async (req, res) => {
       school_id: schoolId
     });
 
-    await supabaseService
-      .from('email_confirmation_tokens')
-      .update({ consumed_at: new Date().toISOString() })
-      .eq('id', tokenData.id);
+    await supabaseService.from('email_confirmation_tokens').update({ consumed_at: new Date().toISOString() }).eq('id', tokenData.id);
 
     console.log(`[AUTH] School admin account created: ${email} for school: ${school_name}`);
-    return res.json({
-      ok: true,
-      message: 'Email confirmed successfully. Your account is ready!',
-      user_id: authUser.user.id,
-      email
-    });
+    return res.json({ ok: true, message: 'Email confirmed successfully. Your account is ready!', user_id: authUser.user.id, email });
   } catch (err) {
     console.error('[VERIFICATION ERROR]', err);
     return res.status(500).json({ error: err.message });
   }
 });
 
+// Finalize registration after Supabase invite (new flow)
+// Called by frontend after user sets password via Supabase invite link
+app.post('/api/public/auth/finalize-registration', async (req, res) => {
+  try {
+    // Verify the Bearer token from Supabase session
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const accessToken = authHeader.split(' ')[1];
+
+    // Get user from the token
+    const { data: { user }, error: userErr } = await supabaseService.auth.getUser(accessToken);
+    if (userErr || !user) {
+      return res.status(401).json({ error: 'Invalid session token' });
+    }
+
+    const { school_name, full_name } = req.body;
+    const email = user.email;
+    const finalName = full_name || user.user_metadata?.full_name || email;
+    const finalSchoolName = school_name || user.user_metadata?.school_name;
+
+    if (!finalSchoolName) {
+      return res.status(400).json({ error: 'school_name is required' });
+    }
+
+    // Check if profile already exists (idempotent)
+    const { data: existingProfile } = await supabaseService.from('profiles').select('id').eq('id', user.id).maybeSingle();
+    if (existingProfile?.id) {
+      return res.json({ ok: true, message: 'Account already finalized.' });
+    }
+
+    // Create or find school
+    const { data: school } = await supabaseService.from('schools').select('id').eq('name', finalSchoolName).maybeSingle();
+    let schoolId = school?.id;
+    if (!schoolId) {
+      const demoExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 day demo
+      const { data: newSchool, error: schoolErr } = await supabaseService
+        .from('schools')
+        .insert({
+          name: finalSchoolName,
+          status: 'pending',
+          subscription_plan: 'demo',
+          subscription_status: 'demo',
+          subscription_expires_at: demoExpiresAt.toISOString().slice(0, 10),
+          demo_started_at: new Date().toISOString(),
+          demo_expires_at: demoExpiresAt.toISOString()
+        })
+        .select('id').single();
+      if (schoolErr) return res.status(400).json({ error: 'Failed to create school record' });
+      schoolId = newSchool.id;
+    }
+
+    // Create profile record
+    const { error: profileErr } = await supabaseService.from('profiles').insert({
+      id: user.id,
+      email,
+      full_name: finalName,
+      role: 'school_admin',
+      school_id: schoolId
+    });
+    if (profileErr) return res.status(400).json({ error: profileErr.message });
+
+    // Update user metadata with school_id
+    await supabaseService.auth.admin.updateUserById(user.id, {
+      user_metadata: { full_name: finalName, role: 'school_admin', school_id: schoolId, pending_registration: false }
+    });
+
+    // Mark invite token as consumed if exists
+    await supabaseService.from('email_confirmation_tokens')
+      .update({ consumed_at: new Date().toISOString() })
+      .eq('email', email)
+      .is('consumed_at', null);
+
+    console.log(`[AUTH] Finalized school admin account: ${email} for school: ${finalSchoolName}`);
+    return res.json({ ok: true, message: 'Account setup complete!', school_id: schoolId });
+  } catch (err) {
+    console.error('[FINALIZE ERROR]', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Test email delivery (for debugging)
 app.post('/api/public/auth/test-email', async (req, res) => {
+
   try {
     const { email } = req.body;
     if (!email) {
