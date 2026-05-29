@@ -30,7 +30,7 @@ export default function ConfirmEmail() {
       const refreshToken = hashParams.get('refresh_token');
       const type = hashParams.get('type'); // 'invite' or 'signup'
 
-      if (accessToken && (type === 'invite' || type === 'signup')) {
+      if (accessToken) {
         const { error: sessionErr } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken
@@ -40,6 +40,39 @@ export default function ConfirmEmail() {
           setStatus('error');
           return;
         }
+
+        if (type === 'signup') {
+          // If it is self-signup, the password is already set. Finalize registration immediately.
+          setStatus('loading');
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            const schoolName = user?.user_metadata?.school_name;
+            const fullName = user?.user_metadata?.full_name;
+
+            if (user?.user_metadata?.pending_registration && schoolName) {
+              const res = await fetch(`${API_URL}/api/public/auth/finalize-registration`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({ school_name: schoolName, full_name: fullName })
+              });
+              if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.error || 'Failed to finalize school registration');
+              }
+            }
+            setStatus('success');
+            setTimeout(() => navigate('/login'), 2500);
+          } catch (err) {
+            setError(err.message);
+            setStatus('error');
+          }
+          return;
+        }
+
+        // Otherwise if it's invite type, prompt user to set password
         setMode('supabase');
         setShowPasswordForm(true);
         setStatus('ready');

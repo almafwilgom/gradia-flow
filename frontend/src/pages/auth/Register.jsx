@@ -40,25 +40,30 @@ export default function Register() {
   const sendSchoolAdminConfirmation = async () => {
     if (!schoolName) throw new Error('School name is required for admin signup');
 
-    const emailRes = await fetch(`${apiBaseUrl}/api/public/auth/send-confirmation-email`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email,
-        full_name: fullName,
-        school_name: schoolName
-      })
+    const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+          school_name: schoolName,
+          role: 'school_admin',
+          pending_registration: true
+        },
+        emailRedirectTo: `${window.location.origin}/auth/confirm-email`
+      }
     });
 
-    const emailData = await emailRes.json();
-    if (!emailRes.ok) {
-      throw new Error(emailData.error || 'Failed to send confirmation email');
+    if (signUpErr) {
+      throw signUpErr;
+    }
+
+    if (!signUpData.user?.id) {
+      throw new Error('Unable to create user');
     }
 
     setVerificationEmail(email);
-    setVerificationMessage(
-      emailData.message || 'Check your inbox and open the confirmation link we sent.'
-    );
+    setVerificationMessage('Check your inbox and open the confirmation link we sent.');
     setShowVerificationSent(true);
   };
 
