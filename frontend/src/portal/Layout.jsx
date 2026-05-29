@@ -2,6 +2,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../hooks/useAuth';
 import { useState } from 'react';
+import { mutate } from 'swr';
 import {
   ChevronLeftIcon,
   Bars3Icon,
@@ -24,6 +25,8 @@ export default function PortalLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
+    // Clear all SWR caches before logging out
+    mutate(() => true, undefined, false);
     await supabase.auth.signOut();
     navigate('/login');
   };

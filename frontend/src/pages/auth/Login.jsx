@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, AlertTriangle, X, Lock, Mail, School, UserCircle, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { API_URL } from '../../lib/api';
+import { mutate } from 'swr';
 
 const roles = [
   { value: 'school_admin', label: 'School Admin', icon: <School size={18} /> },
@@ -78,6 +79,9 @@ export default function Login() {
       setLoading(false);
       return;
     }
+
+    // Clear all SWR caches to ensure fresh profile data
+    mutate(() => true, undefined, false);
 
     const {
       data: { user }

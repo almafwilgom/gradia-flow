@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import useSWR from 'swr';
+import useSWR, { mutate } from 'swr';
 import { supabase } from '../lib/supabaseClient';
 
 const fetcher = async (key) => {
@@ -33,22 +33,40 @@ const fetcher = async (key) => {
 export function useAuth() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [previousUserId, setPreviousUserId] = useState(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
+      setPreviousUserId(data.session?.user?.id ?? null);
       setLoading(false);
     });
+    
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      const currentUserId = currentSession?.user?.id ?? null;
+      const oldUserId = previousUserId;
+      
+      // If user changed (logged out, or different user logged in), clear profile cache
+      if (oldUserId && currentUserId !== oldUserId) {
+        console.log(`[AUTH] User changed from ${oldUserId} to ${currentUserId}, clearing cache...`);
+        mutate(oldUserId);
+        mutate(currentUserId);
+      }
+      
       setSession(currentSession);
+      setPreviousUserId(currentUserId);
     });
+    
     return () => subscription.unsubscribe();
-  }, []);
+  }, [previousUserId]);
 
   const userId = session?.user?.id ?? null;
-  const { data: profile, error, isLoading } = useSWR(userId, fetcher);
+  const { data: profile, error, isLoading } = useSWR(userId, fetcher, {
+    revalidateOnFocus: true,
+    revalidateOnReconnect: true
+  });
 
   const resolvedProfile = profile ??
     (session?.user

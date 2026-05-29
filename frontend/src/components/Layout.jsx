@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../hooks/useAuth';
 import { useSchoolAccess } from '../hooks/useSchoolAccess';
 import { useState } from 'react';
+import { mutate } from 'swr';
 import {
   Bars3Icon,
   XMarkIcon,
@@ -69,6 +70,8 @@ export default function Layout() {
         : navItems.filter((item) => item.roles.includes(profile?.role));
 
   const signOut = async () => {
+    // Clear all SWR caches before logging out
+    mutate(() => true, undefined, false);
     await supabase.auth.signOut();
     navigate('/login');
   };

@@ -2,6 +2,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { mutate } from 'swr';
 import {
   Bars3Icon,
   Squares2X2Icon,
@@ -20,6 +21,8 @@ export default function SuperAdminLayout() {
   const [open, setOpen] = useState(false);
 
   const handleLogout = async () => {
+    // Clear all SWR caches before logging out
+    mutate(() => true, undefined, false);
     await supabase.auth.signOut();
     navigate('/login');
   };
