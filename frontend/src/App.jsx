@@ -99,8 +99,8 @@ export default function App() {
         </Route>
       </Route>
 
-      {/* Admin Routes (School Admin & Teacher) */}
-      <Route element={<ProtectedRoute roles={['school_admin', 'teacher']} />}>
+      {/* Admin Routes (Super Admin, School Admin & Teacher) */}
+      <Route element={<ProtectedRoute roles={['super_admin', 'school_admin', 'teacher']} />}>
         <Route element={<Layout />}>
           <Route path="/admin/dashboard" element={<Dashboard />} />
           <Route path="/teacher/dashboard" element={<TeacherDashboard />} />

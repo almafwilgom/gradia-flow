@@ -8,24 +8,27 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('Supabase environment variables are missing. Check .env file.');
 }
 
+const browserSessionStorage = {
+  getItem: (key) => {
+    if (typeof window === 'undefined') return null;
+    return window.sessionStorage.getItem(key);
+  },
+  setItem: (key, value) => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.setItem(key, value);
+  },
+  removeItem: (key) => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.removeItem(key);
+  }
+};
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
+    storage: browserSessionStorage,
     storageKey: 'sb-auth-token'
   }
 });
-
-// Listen for auth changes in other tabs and sync
-if (typeof window !== 'undefined') {
-  // Handle storage events from other tabs
-  window.addEventListener('storage', (event) => {
-    if (event.key === 'sb-auth-token' && event.newValue !== event.oldValue) {
-      console.log('[AUTH] Session changed in another tab, reloading auth state...');
-      supabase.auth.onAuthStateChange((_event, session) => {
-        console.log('[AUTH] Auth state updated from storage event');
-      });
-    }
-  });
-}

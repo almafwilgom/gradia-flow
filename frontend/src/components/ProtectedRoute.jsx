@@ -13,6 +13,23 @@ export default function ProtectedRoute({ roles }) {
     (path) => location.pathname === path || location.pathname.startsWith(`${path}/`)
   );
   const [fixing, setFixing] = useState(false);
+  const [fixError, setFixError] = useState(null);
+
+  const handleFixRole = async () => {
+    setFixing(true);
+    setFixError(null);
+    try {
+      const data = await apiFetch('/api/verify-super-admin-role', { method: 'POST' });
+      if (data.fixed) {
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error('Failed to fix role:', err);
+      setFixError(err.message);
+    } finally {
+      setFixing(false);
+    }
+  };
 
   if (loading || schoolLoading) return <div className="p-6 text-slate-600">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
@@ -22,26 +39,18 @@ export default function ProtectedRoute({ roles }) {
   if (schoolError) {
     return <div className="p-6 text-rose-600">{schoolError.message}</div>;
   }
-  if (roles && roles.length > 0 && !roles.includes(profile?.role)) {
-    const handleFixRole = async () => {
-      setFixing(true);
-      try {
-        const result = await apiFetch('/api/verify-super-admin-role', { method: 'POST' });
-        if (result.fixed) {
-          window.location.reload();
-        }
-      } catch (err) {
-        console.error('Failed to fix role:', err);
-        alert('Failed to fix role: ' + err.message);
-      } finally {
-        setFixing(false);
-      }
-    };
+  
+  if (roles && roles.length > 0) {
+    const userRole = profile?.role || '';
+    const hasAccess = roles.includes(userRole);
     
-    return (
-      <div className="p-6 text-red-600">
-        <div>Access denied. Your role: {profile?.role || 'unknown'}</div>
-        <div className="mt-4">
+    if (!hasAccess) {
+      return (
+        <div className="p-6">
+          <div className="text-red-600 mb-4">
+            <p>Access denied. Your role: <strong>{userRole || 'unknown'}</strong></p>
+            <p className="text-sm mt-2">Required roles: {roles.join(', ')}</p>
+          </div>
           <button 
             onClick={handleFixRole}
             disabled={fixing}
@@ -49,10 +58,12 @@ export default function ProtectedRoute({ roles }) {
           >
             {fixing ? 'Fixing...' : 'Fix Role Issue'}
           </button>
+          {fixError && <div className="text-red-600 text-sm mt-2">{fixError}</div>}
         </div>
-      </div>
-    );
+      );
+    }
   }
+  
   if (profile?.role === 'school_admin' && !isOperational && !isLimitedAccessPath) {
     return <Navigate to="/pending-approval" replace />;
   }
