@@ -70,7 +70,8 @@ const allowedOrigins = [
   'http://127.0.0.1:5173',
   'https://gradiaflow.com',
   'https://www.gradiaflow.com',
-  'https://gradia-flow.pages.dev'
+  'https://gradia-flow.pages.dev',
+  'https://gradia-flow-2wi.pages.dev'
 ];
 
 app.use(cors({
