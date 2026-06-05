@@ -1,18 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
+import { mutate } from 'swr';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../hooks/useAuth';
+import { API_URL } from '../lib/api';
 import {
   ChevronDownIcon,
   BellIcon,
   DocumentChartBarIcon,
   CalendarDaysIcon,
-  CreditCardIcon
+  CreditCardIcon,
+  AcademicCapIcon,
+  ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
 
+
 export default function PortalHome() {
-  const { profile } = useAuth();
+  const { profile, session } = useAuth();
   const isParent = profile?.role === 'parent';
   const [children, setChildren] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState('');
@@ -21,6 +26,9 @@ export default function PortalHome() {
   const [payments, setPayments] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState('');
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
 
   const selectedStudent = useMemo(
     () => children.find((child) => child.id === selectedStudentId) ?? null,
@@ -212,7 +220,7 @@ export default function PortalHome() {
                             
                             // 4. Update local cache
                             mutate(profile.id);
-                            setReportMsg('Profile picture updated successfully!');
+                            setMsg('Profile picture updated successfully!');
                           } catch (err) {
                             alert('Failed to upload image: ' + (err.message || err));
                           }
@@ -232,15 +240,47 @@ export default function PortalHome() {
                     </h1>
                     <ChevronDownIcon className="w-5 h-5 text-blue-100 shrink-0" />
                   </div>
-                  <p className="text-sm text-blue-100 truncate">
-                    {selectedStudent?.classes?.name ?? 'No class assigned'}
+                  <p className="text-sm text-blue-100 truncate flex items-center gap-1">
+                    <AcademicCapIcon className="w-4 h-4 text-blue-200" />
+                    {selectedStudent?.classes?.name
+                      ? <span className="font-semibold text-white">{selectedStudent.classes.name}</span>
+                      : <span>No class assigned</span>}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-4 w-full sm:w-auto justify-end">
+              <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                {selectedStudentId && (
+                  <button
+                    type="button"
+                    disabled={downloadingPdf}
+                    onClick={async () => {
+                      setDownloadingPdf(true);
+                      setMsg('');
+                      try {
+                        const token = session?.access_token;
+                        const url = `${API_URL}/api/report-card/${selectedStudentId}${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+                        window.open(url, '_blank');
+                      } catch (err) {
+                        setMsg('Failed: ' + err.message);
+                      } finally {
+                        setDownloadingPdf(false);
+                      }
+                    }}
+                    className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all disabled:opacity-60"
+                  >
+                    <ArrowDownTrayIcon className="w-4 h-4" />
+                    {downloadingPdf ? 'Opening...' : 'Report Card'}
+                  </button>
+                )}
                 <BellIcon className="w-6 h-6 text-white" />
               </div>
             </div>
+
+            {msg && (
+              <div className="mx-5 mb-3 rounded-xl bg-white/20 px-4 py-2 text-sm text-white">
+                {msg}
+              </div>
+            )}
 
             {isParent && children.length > 1 && (
               <div className="px-5 pb-4">
@@ -262,10 +302,11 @@ export default function PortalHome() {
               <MetricCard value={`${attendanceRate}%`} label="Attendance" />
               <MetricCard value={averageScore} label="Avg Score" />
               <div className="col-span-2 sm:col-span-1">
-                <MetricCard value={totalClasses} label="Total Classes" />
+                <MetricCard value={latestSessionResults.length} label="Subjects" />
               </div>
             </div>
           </div>
+
 
           <div className="bg-white rounded-[2rem] border border-slate-100 shadow-soft p-5">
             <div className="flex items-center justify-between mb-4">

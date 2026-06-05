@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../hooks/useAuth';
+import { API_URL } from '../lib/api';
 import { SimpleTable } from '../components/SimpleTable';
 
 export default function ParentDashboard() {
-  const { profile } = useAuth();
+  const { profile, session } = useAuth();
   const [parentRecord, setParentRecord] = useState(null);
   const [children, setChildren] = useState([]);
   const [selectedChild, setSelectedChild] = useState(null);
@@ -86,14 +87,13 @@ export default function ParentDashboard() {
 
   const downloadReportCard = async () => {
     if (!selectedChild) return;
-    const { data, error } = await supabase.functions.invoke('report-card', {
-      body: { student_id: selectedChild.id }
-    });
-    if (error) {
-      setDownloadMsg(error.message);
-    } else if (data?.url) {
-      window.open(data.url, '_blank');
-      setDownloadMsg('');
+    setDownloadMsg('');
+    try {
+      const token = session?.access_token;
+      const url = `${API_URL}/api/report-card/${selectedChild.id}${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+      window.open(url, '_blank');
+    } catch (err) {
+      setDownloadMsg(err.message || 'Failed to download report card');
     }
   };
 

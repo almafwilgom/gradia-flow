@@ -839,7 +839,7 @@ app.get('/api/school/dashboard-stats', requireAuth, async (req, res) => {
         .gte('attended_on', since),
       supabaseService
         .from('schools')
-        .select('id, name, school_code, status, disabled_at, demo_expires_at, subscription_status')
+        .select('id, name, school_code, status, disabled_at, demo_expires_at, subscription_status, current_session_year, current_term')
         .eq('id', schoolId)
         .single(),
       supabaseService
@@ -870,10 +870,16 @@ app.get('/api/school/dashboard-stats', requireAuth, async (req, res) => {
       .sort((a, b) => b.average - a.average)
       .slice(0, 4);
 
+    const schoolData = schoolRes.data || {};
+
     return res.json({
-      stats: statsRes.data || {},
+      stats: {
+        ...(statsRes.data || {}),
+        current_session_year: schoolData.current_session_year || null,
+        current_term: schoolData.current_term || null
+      },
       attendance: attendanceRes.data || [],
-      school: schoolRes.data || null,
+      school: schoolData,
       performance
     });
   } catch (err) {
@@ -1367,6 +1373,12 @@ app.get('/api/report-card/:studentId', requireAuth, async (req, res) => {
     if (stErr || !student) return res.status(404).json({ error: 'Student not found' });
     if (actor?.role === 'student' && actor.student_id !== studentId) {
       return res.status(403).json({ error: 'You can only download your own report card' });
+    }
+    if (actor?.role === 'teacher') {
+      const teacherClassId = actor?.teachers?.class_id ?? actor?.teachers?.[0]?.class_id;
+      if (!teacherClassId || teacherClassId !== student.class_id) {
+        return res.status(403).json({ error: 'You can only download report cards for your assigned class' });
+      }
     }
     if (actor?.role !== 'super_admin' && actor?.school_id && actor.school_id !== student.school_id) {
       return res.status(403).json({ error: 'You can only download report cards from your own school' });

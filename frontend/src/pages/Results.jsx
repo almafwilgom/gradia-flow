@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../hooks/useAuth';
-import { apiFetch } from '../lib/api';
+import { API_URL, apiFetch } from '../lib/api';
 import { SimpleTable } from '../components/SimpleTable';
 import { downloadCsv, parseCsv, sanitizeFilename } from '../lib/csv';
+import JSZip from 'jszip';
+
 
 const TERM_OPTIONS = ['Term 1', 'Term 2', 'Term 3'];
 const ENTRY_MODES = [
@@ -168,9 +170,20 @@ export default function Results() {
   const [savingStudent, setSavingStudent] = useState(false);
   const [savingBulk, setSavingBulk] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [printingClass, setPrintingClass] = useState(false);
+  const [promotionLoading, setPromotionLoading] = useState(false);
+  const [rolloverLoading, setRolloverLoading] = useState(false);
+  const [promotionPlan, setPromotionPlan] = useState([]);
   const [reportMsg, setReportMsg] = useState('');
   const [error, setError] = useState(null);
   const [ocrLoading, setOcrLoading] = useState(false);
+
+  const selectedClass = useMemo(
+    () => classes.find((item) => item.id === filters.class_id) ?? null,
+    [classes, filters.class_id]
+  );
+
+  const canRunRollover = profile?.role === 'school_admin' || profile?.role === 'super_admin';
 
   const handleAIScan = async (e) => {
     const file = e.target.files?.[0];
@@ -718,23 +731,183 @@ export default function Results() {
         throw new Error('Your session has expired. Please sign in again.');
       }
 
-      const data = await apiFetch(`/api/report-card/${studentId}`, {
-        method: 'POST',
-        token: session.access_token,
-        body: {
-          term: filters.term,
-          session_year: filters.session_year
-        }
-      });
-
-      if (data?.url) {
-        window.open(data.url, '_blank');
-        setReportMsg('PDF result is ready to download.');
-      } else {
-        setReportMsg('PDF result was generated, but no download link was returned.');
-      }
+      const blob = await fetchReportCardBlob(studentId, session.access_token);
+      const student = selectedStudent || linkedStudent || students.find((item) => item.id === studentId);
+      saveBlob(
+        blob,
+        `${sanitizeFilename(`${student?.first_name ?? 'student'}-${student?.last_name ?? ''}`)}-${sanitizeFilename(filters.term)}-${sanitizeFilename(filters.session_year)}.pdf`
+      );
+      setReportMsg('PDF result is ready to download.');
     } catch (err) {
       setReportMsg(err.message);
+    }
+  };
+
+  const fetchReportCardBlob = async (studentId, token) => {
+    const params = new URLSearchParams({
+      term: filters.term,
+      session_year: filters.session_year
+    });
+    const response = await fetch(`${API_URL}/api/report-card/${studentId}?${params.toString()}`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Unable to generate PDF for student ${studentId}.`);
+    }
+
+    return response.blob();
+  };
+
+  const saveBlob = (blob, filename) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const printClassResults = async () => {
+    if (!filters.class_id) {
+      setReportMsg('Select a class first.');
+      return;
+    }
+    if (filteredStudents.length === 0) {
+      setReportMsg('No students found in this class.');
+      return;
+    }
+
+    setPrintingClass(true);
+    setError(null);
+    setReportMsg(`Preparing ${filteredStudents.length} PDF result(s)...`);
+
+    try {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error('Your session has expired. Please sign in again.');
+      }
+
+      const folderName = sanitizeFilename(
+        `${selectedClass?.name || 'class'}-${filters.term}-${filters.session_year}-results`
+      );
+
+      const zip = new JSZip();
+      let completed = 0;
+
+      for (const student of filteredStudents) {
+        try {
+          const blob = await fetchReportCardBlob(student.id, session.access_token);
+          const fileName = `${sanitizeFilename(`${student.first_name}-${student.last_name}-${student.admission_no || student.id}`)}.pdf`;
+          zip.file(fileName, blob);
+        } catch (fetchErr) {
+          console.error(`Failed to fetch report card for ${student.first_name} ${student.last_name}:`, fetchErr);
+        }
+        completed += 1;
+        setReportMsg(`Prepared ${completed}/${filteredStudents.length} result PDF(s).`);
+      }
+
+      setReportMsg('Generating ZIP folder archive...');
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      saveBlob(zipBlob, `${folderName}.zip`);
+
+      setReportMsg(`Done! Results folder successfully downloaded as '${folderName}.zip'. Extract it to see all PDF files.`);
+    } catch (err) {
+      setReportMsg(err.message);
+    } finally {
+      setPrintingClass(false);
+    }
+  };
+
+  const loadPromotionPlan = async () => {
+    if (!filters.class_id) {
+      setReportMsg('Select a class first.');
+      return;
+    }
+
+    setPromotionLoading(true);
+    setError(null);
+    setReportMsg('');
+
+    try {
+      if (canRunRollover) {
+        const { error: rpcErr } = await supabase.rpc('prepare_session_promotion_decisions', {
+          target_school_id: profile.school_id,
+          target_session_year: filters.session_year,
+          pass_mark: 40,
+          minimum_subjects: 1
+        });
+        if (rpcErr) throw rpcErr;
+      }
+
+      const { data, error: planErr } = await supabase
+        .from('student_promotion_decisions')
+        .select('id, student_id, from_class_id, to_class_id, average_score, subject_count, decision, reason, applied_at, students(first_name,last_name,admission_no), classes!student_promotion_decisions_to_class_id_fkey(name)')
+        .eq('school_id', profile.school_id)
+        .eq('session_year', filters.session_year)
+        .eq('from_class_id', filters.class_id)
+        .order('decision', { ascending: true });
+
+      if (planErr) throw planErr;
+      setPromotionPlan(data ?? []);
+      setReportMsg(`${data?.length ?? 0} promotion decision(s) loaded for ${selectedClass?.name ?? 'this class'}.`);
+    } catch (err) {
+      setReportMsg(err.message);
+      setPromotionPlan([]);
+    } finally {
+      setPromotionLoading(false);
+    }
+  };
+
+  const completeSessionRollover = async () => {
+    if (!canRunRollover) {
+      setReportMsg('Only school admins can complete a session rollover.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Complete ${filters.session_year}? This will promote eligible students, repeat students below the pass mark, move class teachers to the next class, and switch the school to the next session.`
+    );
+    if (!confirmed) return;
+
+    setRolloverLoading(true);
+    setError(null);
+    setReportMsg('Completing session rollover...');
+
+    try {
+      const { data, error: rolloverErr } = await supabase.rpc('finalize_session_rollover', {
+        target_school_id: profile.school_id,
+        target_session_year: filters.session_year,
+        target_pass_mark: 40,
+        minimum_subjects: 1
+      });
+      if (rolloverErr) throw rolloverErr;
+
+      const summaryRow = data?.[0] ?? {};
+      setReportMsg(
+        `Session completed. Promoted: ${summaryRow.promoted_count ?? 0}, repeated: ${summaryRow.repeated_count ?? 0}, graduated: ${summaryRow.graduated_count ?? 0}. New session: ${summaryRow.next_session_year ?? 'next session'}.`
+      );
+      setFilters((current) => ({
+        ...current,
+        session_year: summaryRow.next_session_year || current.session_year,
+        term: 'Term 1',
+        student_id: '',
+        subject_id: ''
+      }));
+      setPromotionPlan([]);
+      await loadReferences();
+    } catch (err) {
+      setReportMsg(err.message);
+    } finally {
+      setRolloverLoading(false);
     }
   };
 
@@ -930,6 +1103,85 @@ export default function Results() {
             <div className={`rounded-lg border px-3 py-2 flex items-center transition-colors ${!loadingClassData && filters.class_id && classSubjects.length === 0 ? 'bg-amber-50 border-amber-200 text-amber-700 font-semibold' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
               {loadingClassData ? 'Refreshing class data...' : filters.class_id && classSubjects.length === 0 ? 'No subjects found! Add them in Classes page.' : `${classSubjects.length} class subjects loaded`}
             </div>
+          </div>
+
+          <div className="bg-white shadow-card border border-slate-100 rounded-xl p-4 space-y-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Class Result Folder & Session Promotion</h2>
+                <p className="text-sm text-slate-500">
+                  Print every student result in the selected class, then preview who should be promoted, repeated, or graduated.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={printClassResults}
+                  disabled={printingClass || !filters.class_id || filteredStudents.length === 0}
+                  className="rounded-lg bg-slate-900 text-white px-4 py-2 text-sm font-semibold hover:bg-slate-800 disabled:opacity-60"
+                >
+                  {printingClass ? 'Preparing PDFs...' : 'Print Class Result Folder'}
+                </button>
+                <button
+                  type="button"
+                  onClick={loadPromotionPlan}
+                  disabled={promotionLoading || !filters.class_id}
+                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {promotionLoading ? 'Checking...' : 'Detect Promote / Repeat'}
+                </button>
+                {canRunRollover && (
+                  <button
+                    type="button"
+                    onClick={completeSessionRollover}
+                    disabled={rolloverLoading || !filters.class_id}
+                    className="rounded-lg bg-brand-600 text-white px-4 py-2 text-sm font-semibold hover:bg-brand-700 disabled:opacity-60"
+                  >
+                    {rolloverLoading ? 'Completing Session...' : 'Complete Session & Move Classes'}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              {[
+                ['Class', selectedClass?.name ?? 'Select class'],
+                ['Students', filteredStudents.length],
+                ['Pass Mark', '40 average'],
+                ['Next Session', filters.session_year ? `${Number(filters.session_year.split('/')[0]) + 1 || ''}/${Number(filters.session_year.split('/')[1]) + 1 || ''}` : '-']
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+                  <div className="mt-1 font-semibold text-slate-900">{value || '-'}</div>
+                </div>
+              ))}
+            </div>
+
+            {promotionPlan.length > 0 && (
+              <SimpleTable
+                headers={['Student', 'Admission No', 'Average', 'Subjects', 'Decision', 'Next Class', 'Reason']}
+                rows={promotionPlan.map((item) => [
+                  `${item.students?.first_name ?? ''} ${item.students?.last_name ?? ''}`.trim(),
+                  item.students?.admission_no ?? '-',
+                  Number(item.average_score ?? 0).toFixed(2),
+                  item.subject_count ?? 0,
+                  <span
+                    key={`decision-${item.id}`}
+                    className={`rounded-full px-2 py-1 text-xs font-semibold uppercase ${
+                      item.decision === 'promote'
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : item.decision === 'graduate'
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'bg-amber-50 text-amber-700'
+                    }`}
+                  >
+                    {item.decision}
+                  </span>,
+                  item.classes?.name ?? (item.decision === 'graduate' ? 'Graduated' : selectedClass?.name ?? '-'),
+                  item.reason ?? '-'
+                ])}
+              />
+            )}
           </div>
         </>
       )}
